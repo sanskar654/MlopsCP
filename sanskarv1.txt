@@ -1,0 +1,1065 @@
+===============================================================================
+PROJECT AUDIT & TECHNICAL INSPECTION REPORT
+File: info.txt
+Project: Adaptive MLOps for Software Vulnerability Detection and Risk Prioritization
+Repository Workspace: MlopsCP-main
+Audit Date: September 23, 2026
+===============================================================================
+
+-------------------------------------------------------------------------------
+PART 1 — PROJECT OVERVIEW
+-------------------------------------------------------------------------------
+
+[What is this project?]
+This project is packaged as an end-to-end MLOps platform designed for cybersecurity vulnerability management. It ingests software vulnerability data (CVEs) from sources like NVD (National Vulnerability Database), CISA KEV (Known Exploited Vulnerabilities), and EPSS (Exploit Prediction Scoring System), trains an XGBoost classifier to predict CVSS base severity ratings (NONE, LOW, MEDIUM, HIGH, CRITICAL), and calculates a composite risk score (0–100) to prioritize remediation actions. It provides a FastAPI backend, an HTML/JS executive web dashboard, Airflow DAGs for pipeline orchestration, and MLflow for experiment tracking.
+
+[What real-world problem is it solving?]
+Modern enterprise security teams face thousands of newly published Common Vulnerabilities and Exposures (CVEs) every month. Security analysts cannot patch every vulnerability immediately. Raw CVSS base scores alone do not reflect real-world threat context (e.g., whether an exploit is actively being used in the wild or whether the affected asset is internet-facing). This project attempts to combine machine learning predictions with threat intelligence (EPSS, CISA KEV) and asset metadata (criticality, exposure) to prioritize which vulnerabilities pose the highest immediate risk.
+
+[What is the exact objective?]
+1. Predict the CVSS base severity class (NONE, LOW, MEDIUM, HIGH, CRITICAL) using machine learning trained on CVSS submetrics, text keywords, CWE IDs, and metadata.
+2. Calculate a composite risk prioritization score (0–100) and assign SLA remediation tiers (CRITICAL_RISK, HIGH_RISK, MEDIUM_RISK, LOW_RISK).
+3. Provide an MLOps pipeline with data validation, model tracking, drift monitoring, and retraining capabilities.
+
+[Who would use it?]
+Security Operations Center (SOC) analysts, Vulnerability Managers, IT Security Engineering teams, and Chief Information Security Officers (CISOs).
+
+[What is the input?]
+- Vulnerability records containing: CVE ID, description text, CVSS vector string (e.g. CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H), publication date, CWE IDs, vendor counts, and reference URLs.
+- Threat intelligence signals: EPSS score (probability 0–1), CISA KEV listing status (boolean).
+- Asset context: Asset criticality multiplier (0.0–1.0 or Tier 1–3) and network exposure level (internet-facing, internal, air-gapped).
+
+[What is the output?]
+- Predicted CVSS severity class (NONE, LOW, MEDIUM, HIGH, CRITICAL) with calibrated class probabilities and confidence score.
+- SHAP feature contribution waterfall (explaining why a prediction was made).
+- Composite risk priority score (0.0 to 100.0) with an assigned SLA tier (CRITICAL_RISK, HIGH_RISK, MEDIUM_RISK, LOW_RISK) and component breakdown.
+- Visual dashboard metrics, Prometheus metrics, and drift reports.
+
+[What is the complete flow from input to final result?]
+1. Data Ingestion: NVD API / CISA KEV / EPSS or synthetic dataset generator (`scripts/seed_data.py`) creates raw vulnerability data.
+2. Data Validation: `DataValidator` checks raw records against Pandera schemas for formatting and range constraints.
+3. Feature Engineering: `FeatureEngineer` parses CVSS vector strings into 22 binary one-hot features, extracts text keyword flags, formats CWE categories, and adds temporal features.
+4. Model Training: `SeverityClassifier` fits an XGBoost classifier on SMOTE-balanced training data, calibrates probabilities using Isotonic Regression, and logs metrics to MLflow via `VulnerabilityTrainer`.
+5. Quality Gate: `ModelQualityGate` verifies macro F1, critical recall, ECE, and latency against thresholds.
+6. Risk Scoring: `RiskScorer` combines predicted severity, EPSS, CISA KEV, asset criticality, and exposure into a final score (0–100).
+7. Serving & Visualization: FastAPI REST API (`src/serving/api/main.py`) exposes `/predict`, `/risk-score`, and `/explain` endpoints, consumed by the dashboard frontend (`src/dashboard/index.html`).
+8. Monitoring & Retraining: `DriftMonitor` computes Population Stability Index (PSI) and KS-test statistics on incoming feature data, intended to trigger Airflow retraining DAGs upon drift detection.
+
+[How does it relate to the topic: "Adaptive MLOps for Software Vulnerability Detection and Risk Prioritization"?]
+- Vulnerability Detection: CLAIMED in the title/README, but NOT IMPLEMENTED in the code (it does not perform code scanning, AST analysis, or vulnerability discovery).
+- Risk Prioritization: IMPLEMENTED via a composite weighted scoring formula.
+- Adaptive MLOps: CLAIMED via automated drift monitoring and Airflow retraining DAGs, but BROKEN in implementation due to code mismatches and missing methods.
+
+[Explanations by Length]
+- 2–3 Sentences Explanation:
+  This project is a vulnerability risk scoring and severity classification platform built with Python, XGBoost, FastAPI, and Docker. It ingests CVE data from NVD, CISA KEV, and EPSS, predicts CVSS severity levels using structured features and text keywords, and computes a composite risk score (0–100) to help security teams prioritize patching. While the architecture includes MLflow tracking, drift monitoring, and Airflow DAGs, several critical code components contain syntax and import errors that prevent automated execution.
+
+- 30-Second Explanation:
+  This project builds a machine learning pipeline that takes software vulnerability data and threat intelligence feeds to output an actionable risk score between 0 and 100. It uses XGBoost with isotonic calibration to classify severity into 5 tiers, explains predictions using SHAP, and combines prediction confidence with CISA KEV active exploit data, EPSS probabilities, and asset criticality. It features a dark-mode web dashboard and FastAPI serving layer. However, while the project presents an impressive UI and dockerized stack, deep inspection reveals that key MLOps components like automated retraining DAGs and several API endpoints use broken code or hardcoded mock responses rather than real dynamic execution.
+
+- Detailed Technical Explanation:
+  The codebase implements a multi-class ordinal classifier (XGBoost 5-class softprob) aimed at predicting CVSS v3.1 base severity from parsed vector components (Attack Vector, Attack Complexity, Privileges Required, etc.), NLP description regex matches, CWE groupings, and metadata. The pipeline attempts to avoid target leakage by explicitly excluding the CVSS base score from input features, using only submetric flags. Training incorporates SMOTE oversampling for class balance and Isotonic Regression for probability calibration. Model artifacts and evaluation metrics are managed via MLflow tracking and evaluated against a Quality Gate enforcing Macro F1 >= 0.82 and Critical Recall >= 0.88. Serving is handled by a FastAPI application with endpoints for inference, SHAP tree explanations, and risk scoring. Pipeline orchestration is defined via Apache Airflow DAGs, and statistical drift monitoring is implemented using Kolmogorov-Smirnov and Population Stability Index (PSI) tests. However, multiple critical integration failures exist: Airflow DAGs and execution scripts call non-existent methods and modules, API endpoints for drift and model registry return static mock JSON, and the synthetic dataset generator creates template-based data that invalidates temporal cross-validation.
+
+
+-------------------------------------------------------------------------------
+PART 2 — PROBLEM DEFINITION
+-------------------------------------------------------------------------------
+
+A. Vulnerability Detection (Identifying unknown bugs/flaws in code or binaries):
+   - CLAIMED IN TITLE & README: Yes ("Software Vulnerability Detection").
+   - ACTUALLY PERFORMED: NO. There is no static analysis (SAST), dynamic analysis (DAST), binary auditing, or code scanning logic in the repo. The system ingests already known CVEs.
+
+B. Vulnerability Exploitation Prediction (Predicting if a CVE will be exploited in the wild):
+   - ACTUALLY PERFORMED: NO (by ML model). Exploitation probability is NOT predicted by the system's ML model. Instead, the project imports external EPSS scores (Exploit Prediction Scoring System by FIRST.org) and CISA KEV catalog flags directly as raw inputs.
+
+C. Vulnerability Risk Scoring (Calculating a numerical risk metric based on severity and context):
+   - ACTUALLY PERFORMED: YES. Implemented in `src/models/risk_scorer.py` (`RiskScorer` class). It combines ML-predicted severity, EPSS probability, CISA KEV status, asset criticality, and network exposure into a 0–100 score.
+
+D. Vulnerability Prioritization (Ranking vulnerabilities and mapping to remediation SLAs):
+   - ACTUALLY PERFORMED: YES. The composite risk score is mapped into 4 risk tiers (CRITICAL_RISK, HIGH_RISK, MEDIUM_RISK, LOW_RISK) associated with SLA remediation timeframes (24h, 72h, 14 days, 30 days).
+
+[Summary of Discrepancies between Claims and Reality]:
+- Major Misleading Claim: The title and README state "Vulnerability Detection". A security reviewer will immediately notice that the system does not detect vulnerabilities. It should be titled "Vulnerability Severity Classification and Risk Prioritization".
+- Exploitation Claim: The README implies the system assesses exploitation risk, but it merely ingests third-party EPSS scores and CISA KEV flags as passive inputs.
+
+
+-------------------------------------------------------------------------------
+PART 3 — COMPLETE ARCHITECTURE
+-------------------------------------------------------------------------------
+
+Reconstructed Actual Architecture from Existing Code:
+
+Data Sources (NVD 2.0 API, CISA KEV, EPSS API, Synthetic Generator)
+     ↓
+Data Validation (Pandera Schema Validation - `DataValidator`)
+     ↓
+Feature Engineering (CVSS Vector Parser, Keyword Matching, CWE Mapper)
+     ↓
+Temporal CV & SMOTE Balancing (`TemporalCrossValidator`, `SMOTE`)
+     ↓
+ML Model Training (XGBoost Classifier + Isotonic Calibration)
+     ↓
+Model Evaluation & Quality Gate (`ModelQualityGate` + MLflow Tracking)
+     ↓
+Risk Scoring Engine (`RiskScorer` Composite Formula)
+     ↓
+FastAPI Serving Layer (REST Endpoints + Model Registry Loader)
+     ↓
+Web Dashboard (HTML5 / CSS3 / JS Executive Interface)
+     ↓
+Statistical Drift Monitoring (`StatisticalDriftDetector` - KS-Test & PSI)
+     ↓
+Airflow Orchestration (DAGs for Ingestion, Training, Monitoring - BROKEN)
+
+[Component-by-Component Breakdown]:
+
+1. Data Sources / Ingestion Clients
+   - Purpose: Fetch CVE data from NIST NVD, CISA KEV, and FIRST EPSS.
+   - Files: `src/ingestion/nvd_client.py`, `src/ingestion/cisa_kev_client.py`, `src/ingestion/epss_client.py`, `scripts/seed_data.py`.
+   - Data In: API parameters (lookback days, dates, API keys).
+   - Data Out: Parsed JSON dicts, pandas DataFrames, parquet/csv files.
+   - Libraries: `requests`, `tenacity`, `pandas`, `numpy`.
+   - Status: FUNCTIONAL at client class level; BROKEN when invoked by Airflow DAGs due to missing method calls.
+
+2. Data Validation
+   - Purpose: Validate data structure, data types, and value range constraints.
+   - File: `src/validation/schema_validator.py`.
+   - Data In: Raw vulnerability pandas DataFrame.
+   - Data Out: Cleaned DataFrame, validation report dictionary.
+   - Libraries: `pandera`, `pandas`, `re`.
+   - Status: FUNCTIONAL (implemented as `DataValidator`; note that scripts import `VulnerabilitySchemaValidator` which does not exist).
+
+3. Feature Engineering
+   - Purpose: Extract ML feature vectors from raw text, CVSS vectors, and metadata.
+   - Files: `src/features/cvss_parser.py`, `src/features/feature_engineer.py`.
+   - Data In: Raw vulnerability DataFrames / dicts.
+   - Data Out: Processed DataFrame containing 40+ numeric/boolean feature columns + target label.
+   - Libraries: `pandas`, `numpy`, `re`.
+   - Status: FUNCTIONAL (implemented as `FeatureEngineer`; note that scripts import `features.pipeline.FeaturePipeline` which does not exist).
+
+4. Machine Learning Model & Calibration
+   - Purpose: Multi-class severity classification with calibrated probabilities.
+   - File: `src/models/severity_classifier.py`.
+   - Data In: Engineered feature DataFrame, target series (0–4 ordinal).
+   - Data Out: Severity predictions, calibrated class probabilities, ECE metrics.
+   - Libraries: `xgboost`, `scikit-learn` (`CalibratedClassifierCV`, `StandardScaler`).
+   - Status: FUNCTIONAL.
+
+5. Explainability (XAI)
+   - Purpose: Decompose model predictions into human-interpretable feature contributions.
+   - File: `src/models/explainer.py`.
+   - Data In: Fitted classifier, feature DataFrame row, target class.
+   - Data Out: Dict of SHAP values, feature values, direction, narrative summary text.
+   - Libraries: `shap`, `numpy`, `pandas`.
+   - Status: FUNCTIONAL (has fallback when SHAP is not installed).
+
+6. Model Quality Gate
+   - Purpose: Enforce promotion standards (F1 >= 0.82, Critical Recall >= 0.88, ECE <= 0.10, Latency <= 50ms).
+   - File: `src/training/quality_gate.py`.
+   - Data In: Test metrics dictionary, optional champion metrics.
+   - Data Out: Quality gate evaluation result dictionary (`passed`, `checks`, `failures`).
+   - Libraries: Standard Python logging and dict handling.
+   - Status: PARTIALLY FUNCTIONAL (`evaluate` method works; missing `promote_to_production` method called by Airflow DAG).
+
+7. Training Orchestrator & Experiment Tracking
+   - Purpose: Execute temporal split, SMOTE, model fitting, and MLflow logging.
+   - File: `src/training/trainer.py`.
+   - Data In: Feature DataFrame (`df_features`).
+   - Data Out: MLflow run ID, metrics dictionary.
+   - Libraries: `mlflow`, `imblearn.over_sampling.SMOTE`, `pandas`, `scikit-learn`.
+   - Status: FUNCTIONAL (`train` method works; missing `train_and_evaluate` method called by Airflow DAG and runner script).
+
+8. Composite Risk Scoring Engine
+   - Purpose: Calculate weighted composite risk score (0–100) and SLA risk tier.
+   - File: `src/models/risk_scorer.py`.
+   - Data In: Predicted severity class, confidence, EPSS score, CISA KEV status, asset criticality, exposure.
+   - Data Out: `RiskResult` dataclass with score, tier, and component breakdown.
+   - Libraries: `numpy`, `pandas`, `dataclasses`.
+   - Status: FUNCTIONAL (`score` method works; missing `calculate_risk` method called by runner script).
+
+9. Serving API
+   - Purpose: REST API endpoints for real-time inference, risk scoring, explanations, health.
+   - Files: `src/serving/api/main.py`, `model_loader.py`, `schemas.py`, `routes/*.py`.
+   - Data In: JSON HTTP requests.
+   - Data Out: Structured Pydantic JSON responses.
+   - Libraries: `fastapi`, `uvicorn`, `pydantic`, `starlette-prometheus`.
+   - Status: PARTIALLY FUNCTIONAL (`/predict`, `/risk-score`, `/explain`, `/health` are functional with fallback logic; `/vulnerabilities`, `/models`, `/models/compare`, `/drift`, `/metrics/summary`, `/retrain` return static hardcoded JSON).
+
+10. Executive Dashboard
+    - Purpose: Frontend visual interface for risk analysis and system monitoring.
+    - Files: `src/dashboard/index.html`, `css/dashboard.css`, `js/dashboard.js`, `Dockerfile`, `nginx.conf`.
+    - Data In: User inputs, REST API responses.
+    - Data Out: Rendered HTML/CSS layout with Chart.js plots.
+    - Libraries: Vanilla HTML/CSS/JS, Chart.js (via CDN).
+    - Status: FUNCTIONAL UI with fallback simulation in JS when API is unavailable.
+
+11. Drift Monitoring Engine
+    - Purpose: Detect feature and prediction drift using statistical tests.
+    - Files: `src/monitoring/drift_detector.py`, `alerting.py`, `metrics_exporter.py`, `performance_monitor.py`.
+    - Data In: Reference DataFrame (training baseline), current DataFrame (inference logs).
+    - Data Out: Drift report dictionary (PSI values, KS-test p-values, retraining recommendation).
+    - Libraries: `scipy.stats`, `numpy`, `pandas`, `prometheus_client`.
+    - Status: FUNCTIONAL statistical implementation using SciPy. (Note: Evidently AI is mentioned in README/requirements, but not used in `drift_detector.py`).
+
+12. Airflow Orchestration DAGs
+    - Purpose: Automated daily data ingestion, weekly training, and periodic drift monitoring.
+    - Files: `airflow/dags/data_ingestion_dag.py`, `drift_monitoring_dag.py`, `model_training_dag.py`.
+    - Status: BROKEN / PLANNED ONLY. Will crash at runtime due to mismatched method signatures and missing module imports.
+
+
+-------------------------------------------------------------------------------
+PART 4 — FILE-BY-FILE ANALYSIS
+-------------------------------------------------------------------------------
+
+FILE STRUCTURE
+--------------
+.env.example
+.github/workflows/ci_cd.yml
+airflow/dags/data_ingestion_dag.py
+airflow/dags/drift_monitoring_dag.py
+airflow/dags/model_training_dag.py
+configs/config.yaml
+configs/drift_config.yaml
+configs/model_config.yaml
+configs/risk_config.yaml
+data/raw/vulnerabilities_dataset.csv
+data/raw/vulnerabilities_dataset.parquet
+docker-compose.yml
+docker/airflow/Dockerfile
+docker/mlflow/Dockerfile
+docker/postgres/create_multiple_dbs.sh
+docker/postgres/init.sql
+implementation_plan.md
+pytest.ini
+README.md
+requirements-dev.txt
+requirements.txt
+scripts/run_pipeline.py
+scripts/seed_data.py
+scripts/simulate_traffic.py
+src/dashboard/Dockerfile
+src/dashboard/css/dashboard.css
+src/dashboard/index.html
+src/dashboard/js/dashboard.js
+src/dashboard/nginx.conf
+src/features/cvss_parser.py
+src/features/feature_engineer.py
+src/ingestion/cisa_kev_client.py
+src/ingestion/epss_client.py
+src/ingestion/nvd_client.py
+src/models/explainer.py
+src/models/risk_scorer.py
+src/models/severity_classifier.py
+src/monitoring/alerting.py
+src/monitoring/drift_detector.py
+src/monitoring/metrics_exporter.py
+src/monitoring/performance_monitor.py
+src/serving/Dockerfile
+src/serving/api/main.py
+src/serving/api/model_loader.py
+src/serving/api/routes/drift.py
+src/serving/api/routes/explain.py
+src/serving/api/routes/feedback.py
+src/serving/api/routes/health.py
+src/serving/api/routes/metrics.py
+src/serving/api/routes/models.py
+src/serving/api/routes/predict.py
+src/serving/api/routes/retrain.py
+src/serving/api/routes/risk.py
+src/serving/api/routes/vulnerabilities.py
+src/serving/api/schemas.py
+src/training/cross_validation.py
+src/training/quality_gate.py
+src/training/trainer.py
+src/validation/schema_validator.py
+tests/integration/test_api.py
+tests/unit/test_drift_detector.py
+tests/unit/test_quality_gate.py
+tests/unit/test_risk_scorer.py
+
+DETAILED FILE ANALYSIS
+----------------------
+
+1. `.env.example`
+   - Purpose: Template file for environment variable configurations.
+   - Inputs/Outputs: Environment key-value pairs.
+   - Dependencies: None.
+   - Connects to: `docker-compose.yml`, FastAPI `main.py`, Airflow DAGs.
+   - Completeness: Complete.
+
+2. `.github/workflows/ci_cd.yml`
+   - Purpose: GitHub Actions CI/CD workflow definition.
+   - Key Steps: Runs flake8/black linting, pytest unit/integration tests, and builds Docker images (`serving`, `dashboard`).
+   - Dependencies: `actions/checkout@v4`, `actions/setup-python@v5`, `docker/build-push-action@v5`.
+   - Completeness: Complete and valid YAML syntax.
+
+3. `airflow/dags/data_ingestion_dag.py`
+   - Purpose: Daily Airflow DAG for ingesting NVD/CISA KEV data, validating schema, and creating feature store.
+   - Important Functions: `run_nvd_ingestion()`, `run_cisa_kev_ingestion()`, `run_data_validation()`, `run_feature_engineering()`.
+   - Dependencies: `airflow`, `pandas`, `ingestion.nvd_client`, `ingestion.cisa_kev_client`, `validation.schema_validator`, `features.pipeline`.
+   - Connects to: Ingestion, validation, and feature modules.
+   - Suspicious/Problematic Implementation: CRITICAL BUGS.
+     - Calls `NVDClient.fetch_recent_cves(days=7)` which does NOT exist on `NVDClient`.
+     - Calls `CISAKEVClient.fetch_catalog()` which does NOT exist on `CISAKEVClient`.
+     - Imports `VulnerabilitySchemaValidator` which does NOT exist in `schema_validator.py`.
+     - Imports `from features.pipeline import FeaturePipeline` which does NOT exist in `src/features/`.
+     This DAG will crash immediately upon execution.
+
+4. `airflow/dags/drift_monitoring_dag.py`
+   - Purpose: Periodic Airflow DAG (every 6h) for monitoring production drift and triggering retraining.
+   - Important Functions: `check_production_drift()`, `drift_stable_log()`.
+   - Dependencies: `airflow`, `monitoring.drift_detector.DriftMonitor`, `monitoring.alerting.AlertManager`.
+   - Connects to: `model_training_dag.py` via `TriggerDagRunOperator`.
+   - Suspicious/Problematic Implementation: Depends on hardcoded container path `/opt/airflow/data/inference_logs/recent_cves.parquet` which is never written by the API serving layer.
+
+5. `airflow/dags/model_training_dag.py`
+   - Purpose: Weekly Airflow DAG for retraining XGBoost model, running quality gates, and promoting to champion.
+   - Important Functions: `run_training_pipeline()`, `run_quality_gate_and_promotion()`.
+   - Dependencies: `airflow`, `training.trainer.VulnerabilityTrainer`, `training.quality_gate.ModelQualityGate`.
+   - Suspicious/Problematic Implementation: CRITICAL BUGS.
+     - Line 45: Calls `trainer.train_and_evaluate(data_path=...)` which does NOT exist on `VulnerabilityTrainer` (method is `train(df_features)`).
+     - Line 65: Calls `gate.evaluate(metrics, run_id=run_id)` with invalid parameter `run_id`, expecting tuple `(passed, report)` return instead of dict.
+     - Line 69: Calls `gate.promote_to_production(...)` which does NOT exist on `ModelQualityGate`.
+     This DAG will crash immediately upon execution.
+
+6. `configs/config.yaml`, `drift_config.yaml`, `model_config.yaml`, `risk_config.yaml`
+   - Purpose: YAML files specifying global storage/MLflow settings, drift thresholds (PSI 0.20), hyperparameter values (n_estimators=300, max_depth=6), quality gates, and risk weights (CVSS 0.35, KEV 0.25, EPSS 0.15, exploitability 0.25).
+   - Completeness: Complete configuration schemas.
+
+7. `data/raw/vulnerabilities_dataset.csv` & `vulnerabilities_dataset.parquet`
+   - Purpose: Synthetic vulnerability dataset containing 500 rows created by `seed_data.py`.
+   - Columns: `cve_id`, `description`, `published_date`, `last_modified_date`, `attack_vector`, `attack_complexity`, `privileges_required`, `user_interaction`, `scope`, `confidentiality_impact`, `integrity_impact`, `availability_impact`, `cvss_v3_base_score`, `base_severity`, `cisa_kev`, `epss_score`, `cvss_exploitability_score`, `cvss_impact_score`.
+
+8. `docker-compose.yml`
+   - Purpose: Full production stack orchestration containing services: `postgres`, `redis`, `minio`, `minio-init`, `mlflow`, `airflow-init`, `airflow-webserver`, `airflow-scheduler`, `airflow-worker`, `api`, `dashboard`.
+   - Completeness: Complete, well-structured compose file with proper healthchecks and networks.
+
+9. `docker/airflow/Dockerfile`, `docker/mlflow/Dockerfile`, `docker/postgres/*`
+   - Purpose: Container definitions and DB initialization scripts (`init.sql` creates raw tables, features tables, risk tables, feedback, model registry, drift reports, asset inventory, ingestion log).
+
+10. `scripts/seed_data.py`
+    - Purpose: Generates synthetic vulnerability data mirroring NVD 2.0 and CISA KEV schemas.
+    - Important Function: `generate_dataset(num_samples, output_dir)`.
+    - Suspicious/Problematic Implementation: Randomly samples from only 8 hardcoded template vulnerability dictionaries (`SAMPLE_VULNERABILITIES`) with minor Gaussian noise. This creates a highly repetitive dataset where identical text/vector combinations repeat hundreds of times under different CVE IDs.
+
+11. `scripts/run_pipeline.py`
+    - Purpose: Execution script intended to run the end-to-end pipeline locally.
+    - Important Function: `main()`.
+    - Suspicious/Problematic Implementation: CRITICAL BUGS.
+      - Line 45: `from validation.schema_validator import VulnerabilitySchemaValidator` -> ImportError (`VulnerabilitySchemaValidator` does not exist).
+      - Line 58: `from features.pipeline import FeaturePipeline` -> ImportError (`features.pipeline` does not exist).
+      - Line 77: `trainer.train_and_evaluate(...)` -> AttributeError (`train_and_evaluate` does not exist).
+      - Line 88: `scorer.calculate_risk(...)` -> AttributeError (`calculate_risk` does not exist, method is `score`).
+      Running `python scripts/run_pipeline.py` fails immediately on line 45.
+
+12. `scripts/simulate_traffic.py`
+    - Purpose: Benchmark traffic simulator sending 50 HTTP requests to `/api/v1/risk-score`. Has fallback exception handling for local simulation when server is down.
+
+13. `src/features/cvss_parser.py`
+    - Purpose: Parses CVSS v3.x vector strings into submetric dicts and one-hot binary features (22 columns).
+    - Important Functions: `parse_cvss_vector()`, `cvss_submetrics_to_onehot()`, `severity_to_numeric()`.
+    - Completeness: Complete and clean implementation.
+
+14. `src/features/feature_engineer.py`
+    - Purpose: Feature extraction pipeline transforming raw vulnerability records into ML vectors.
+    - Important Class: `FeatureEngineer`.
+    - Key Features: CVSS one-hot, temporal features, exploitation signals (KEV, EPSS), regex keyword matching (RCE, SQLi, XSS, Overflow, Auth Bypass, Priv Esc, DoS), CWE categories, metadata.
+    - Completeness: Complete implementation.
+
+15. `src/ingestion/cisa_kev_client.py`, `epss_client.py`, `nvd_client.py`
+    - Purpose: API clients for fetching CISA KEV, EPSS, and NVD 2.0 REST data.
+    - Key Classes: `CISAKEVClient` (methods `fetch()`, `fetch_as_set()`), `EPSSClient` (methods `fetch_for_cves()`, `fetch_all()`), `NVDClient` (methods `fetch_cves_since()`, `fetch_cve_by_id()`).
+    - Completeness: Production-grade client implementations with retry logic, rate limiting, and caching.
+
+16. `src/models/explainer.py`
+    - Purpose: SHAP TreeExplainer wrapper for multi-class XGBoost model explanations.
+    - Important Class: `SHAPExplainer` (methods `initialize()`, `explain_single()`, `global_feature_importance()`).
+    - Completeness: Complete, with fallback explanation logic when SHAP is unavailable.
+
+17. `src/models/risk_scorer.py`
+    - Purpose: Composite risk scoring engine.
+    - Important Class: `RiskScorer` (methods `score()`, `score_batch()`, `to_dataframe()`).
+    - Formula: Weighted sum of normalized CVSS severity, KEV status, EPSS score, asset criticality, network exposure, and model confidence.
+    - Completeness: Complete.
+
+18. `src/models/severity_classifier.py`
+    - Purpose: Multi-class XGBoost classifier with Isotonic probability calibration and SMOTE support.
+    - Important Class: `SeverityClassifier` (methods `fit()`, `predict()`, `predict_proba()`, `predict_with_confidence()`, `evaluate()`, `_compute_ece()`).
+    - Completeness: Complete and clean.
+
+19. `src/monitoring/alerting.py`, `drift_detector.py`, `metrics_exporter.py`, `performance_monitor.py`
+    - Purpose: Real-time monitoring, alert webhooks, statistical drift detection (KS-test, PSI), and Prometheus metrics export.
+    - Key Classes: `StatisticalDriftDetector`, `DriftMonitor`, `AlertManager`, `PerformanceTracker`.
+    - Completeness: Complete SciPy-based statistical drift monitoring.
+
+20. `src/serving/api/main.py`, `model_loader.py`, `schemas.py`
+    - Purpose: FastAPI serving application and lifecycle manager.
+    - Key Classes: `ModelRegistry` (loads champion/challenger from MLflow), Pydantic schemas.
+    - Completeness: Functional FastAPI app setup.
+
+21. `src/serving/api/routes/*.py`
+    - `predict.py`: Real ML prediction endpoint (`/api/v1/predict`) with fallback logic.
+    - `risk.py`: Real risk scoring endpoint (`/api/v1/risk-score`).
+    - `explain.py`: Real SHAP explanation endpoint (`/api/v1/explain`).
+    - `vulnerabilities.py`: Returns hardcoded static `MOCK_VULNS` list.
+    - `feedback.py`: Logs feedback to memory/console; does not persist to PostgreSQL.
+    - `models.py`: Returns static hardcoded JSON metadata for champion v2.4 and challenger v2.5-rc1.
+    - `drift.py`: Returns static hardcoded JSON drift report.
+    - `metrics.py`: Exposes Prometheus metrics and static summary JSON.
+    - `retrain.py`: Returns static JSON response claiming DAG triggered; does not communicate with Airflow API.
+    - `health.py`: Health check verifying DB and MLflow connectivity.
+
+22. `src/training/cross_validation.py`, `quality_gate.py`, `trainer.py`
+    - `cross_validation.py`: `TemporalCrossValidator` implementing time-aware train/val/test split and walk-forward CV folds.
+    - `quality_gate.py`: `ModelQualityGate` enforcing absolute thresholds and champion vs challenger comparison.
+    - `trainer.py`: `VulnerabilityTrainer` managing MLflow experiment logging, SMOTE, training, and evaluation.
+
+23. `src/validation/schema_validator.py`
+    - Purpose: Pandera-based schema validation (`DataValidator`).
+
+24. `tests/integration/test_api.py` & `tests/unit/test_*.py`
+    - Unit tests for drift detector (`test_drift_detector.py`), quality gate (`test_quality_gate.py`), risk scorer (`test_risk_scorer.py`), and FastAPI integration (`test_api.py`).
+    - Status: All 4 test files pass when executed against their respective unit components, but fail to cover the broken DAGs or runner script.
+
+
+-------------------------------------------------------------------------------
+PART 5 — DATASET / DATA SOURCES
+-------------------------------------------------------------------------------
+
+Dataset Name: `vulnerabilities_dataset.csv` / `vulnerabilities_dataset.parquet`
+Primary Source in Repo: Generated by `scripts/seed_data.py`.
+Referenced External Sources:
+- NIST NVD 2.0 API (`https://services.nvd.nist.gov/rest/json/cves/2.0`)
+- CISA Known Exploited Vulnerabilities Catalog (`https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json`)
+- FIRST EPSS API (`https://api.first.org/data/v1/epss`)
+
+Sample Count: 500 rows in committed data (default `seed_data.py` generates 3,000 rows).
+Features / Columns: 18 raw columns, transformed into 40+ engineered features.
+Target Variable: `base_severity` (raw string label: NONE, LOW, MEDIUM, HIGH, CRITICAL), transformed to `severity_numeric` (0 to 4 ordinal).
+
+Feature Breakdown and Usage:
+1. CVSS Vector String (`cvss_vector_string`): e.g. "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H". Parsed by `cvss_parser.py` into 22 binary one-hot features (`av_network`, `ac_low`, `pr_none`, `ui_none`, `scope_changed`, `ci_high`, etc.). Used as primary features for severity prediction.
+2. Description (`description`): Raw vulnerability text. Used in `feature_engineer.py` to extract `description_length`, `description_word_count`, and boolean keyword flags (`has_rce_keyword`, `has_sqli_keyword`, `has_xss_keyword`, `has_overflow_keyword`, `has_auth_bypass_keyword`, `has_priv_esc_keyword`, `has_dos_keyword`).
+3. Publication Date (`published_date`): ISO timestamp. Used for `TemporalCrossValidator` time-ordering and feature derivation (`days_since_published`, `quarter_published`, `year_published`, `is_recent`).
+4. CISA KEV (`cisa_kev` / `in_cisa_kev`): Boolean flag indicating active exploitation in the wild listed in CISA's catalog. Used as an exploitation feature in ML and as a 25% weighted component in risk scoring.
+5. EPSS Score (`epss_score`): Float between 0.0 and 1.0 representing the FIRST.org empirical probability of exploitation in the next 30 days. Used as an exploitation feature in ML and as a 15–20% weighted component in risk scoring.
+6. EPSS Percentile (`epss_percentile`): Float between 0.0 and 1.0 representing relative EPSS rank. Used as a feature in ML.
+7. CWE IDs (`cwe_ids`): Common Weakness Enumeration identifiers (e.g. CWE-79, CWE-89). Mapped into broad category booleans (`is_memory_safety_cwe`, `is_injection_cwe`, `is_auth_cwe`, `is_config_cwe`) and primary category ID.
+8. Vendor Count & Reference Count (`vendor_count`, `reference_count`): Integer counts of affected CPEs and reference URLs. Used as metadata complexity features.
+9. Asset Criticality (`asset_criticality`): Float between 0.0 and 1.0 (or multiplier 0.8x to 1.3x) representing organizational asset importance. Used exclusively in `RiskScorer` formula (NOT ML model).
+10. Network Exposure (`exposure_score` / `asset_exposure`): Float between 0.0 and 1.0 (or level: internet-facing, internal, air-gapped). Used exclusively in `RiskScorer` formula.
+
+Missing Values: Raw missing text/scores are coerced to empty strings / 0.0 / median values in preprocessing.
+Class Distribution in Seed Data: Roughly 35% MEDIUM, 30% HIGH, 20% CRITICAL, 15% LOW.
+Splits: 70% Train, 15% Validation, 15% Test via `TemporalCrossValidator`.
+Time Period Covered: Synthetic dates span 2021 to 2025.
+Data Dynamicity: Static seed dataset provided. External API clients exist but are not dynamically synced to a live database during execution.
+
+
+-------------------------------------------------------------------------------
+PART 6 — MACHINE LEARNING
+-------------------------------------------------------------------------------
+
+ML Problem Formulation:
+- Type: 5-Class Ordinal Classification.
+- Target: `severity_numeric` (0=NONE, 1=LOW, 2=MEDIUM, 3=HIGH, 4=CRITICAL).
+- Inputs: 22 CVSS one-hot submetrics, 4 temporal features, 4 exploitation features, 9 text keyword/length features, 5 CWE category features, 3 metadata features. Total: 47 features.
+- Model Algorithm: XGBoost (`XGBClassifier`) with parameters: `n_estimators=500`, `max_depth=6`, `learning_rate=0.05`, `subsample=0.8`, `colsample_bytree=0.8`, `objective='multi:softprob'`, `tree_method='hist'`.
+- Model Calibration: `CalibratedClassifierCV` using Isotonic Regression fitted on validation fold or via 5-fold CV.
+- Imbalance Strategy: `SMOTE` (Synthetic Minority Over-sampling Technique) applied to training features.
+- Model Choice Rationale: XGBoost handles mixed tabular feature types (booleans, integers, floats) well, provides high gradient boosting performance, and integrates natively with SHAP `TreeExplainer`.
+
+Complete ML Pipeline Flow (as coded in `trainer.py`):
+1. Raw Data -> `DataValidator.validate_raw()` (cleans duplicates, checks schema).
+2. `FeatureEngineer.transform()` -> extracts submetrics, keywords, CWEs, temporal signals.
+3. Filtering -> drops records missing target labels.
+4. `TemporalCrossValidator.temporal_split()` -> sorts by `year_published` and splits 70/15/15.
+5. Imbalance Handling -> `SMOTE.fit_resample()` balances minority classes in training set.
+6. Scaling & Model Fit -> `StandardScaler` + `XGBClassifier.fit()` with early stopping on validation set.
+7. Probability Calibration -> `CalibratedClassifierCV(method='isotonic')` fits on validation set.
+8. Test Evaluation -> calculates Macro F1, Weighted F1, Critical Recall, ROC-AUC, ECE (Expected Calibration Error), p99 latency.
+9. SHAP Analysis -> `SHAPExplainer` computes per-sample waterfall and global mean |SHAP| values.
+10. MLflow Tracking -> logs parameters, metrics, feature importance artifacts, and registered model.
+11. Quality Gate -> `ModelQualityGate.evaluate()` checks criteria before promotion.
+
+
+-------------------------------------------------------------------------------
+PART 7 — MODEL EVALUATION
+-------------------------------------------------------------------------------
+
+Evaluation Metrics Implemented:
+1. Macro F1 Score: Unweighted average of F1 across all 5 classes. Primary quality gate metric (threshold >= 0.82).
+2. Critical Class Recall: Recall specifically for Class 4 (CRITICAL). Secondary quality gate metric (threshold >= 0.88).
+3. Expected Calibration Error (ECE): Measures calibration alignment between predicted probabilities and empirical accuracy across 10 bins. Threshold <= 0.10.
+4. ROC-AUC: One-vs-Rest macro-averaged ROC-AUC across all 5 classes.
+5. Balanced Accuracy: Macro-averaged recall across all classes.
+6. Inference Latency (p99): 99th percentile inference time in milliseconds (threshold <= 50ms).
+7. Confusion Matrix: 5x5 confusion matrix.
+
+Critical Analysis of Evaluation Results:
+- High Reported Accuracy / F1 (~0.89+):
+  The repository reports a high Macro F1 of 0.894 and Critical Recall of 0.941. HOWEVER, this result is misleading due to the dataset generation method:
+  `scripts/seed_data.py` generates synthetic data by randomly picking from a tiny list of 8 fixed template dictionaries (`SAMPLE_VULNERABILITIES`). Out of 3,000 generated records, all 3,000 are simple noisy duplicates of these 8 templates. As a result, the training, validation, and test sets contain virtually identical feature vectors. The high F1 score is an artifact of synthetic data repetition, NOT real-world generalization performance.
+- Evaluation Metric Appropriateness:
+  - Macro F1 and Critical Recall are highly appropriate for severity classification because missing a CRITICAL vulnerability has severe real-world security consequences.
+  - ECE is an excellent metric for risk scoring because raw uncalibrated probabilities from tree models produce extreme 0/1 estimates.
+  - MISSING METRICS: For risk prioritization (ranking CVEs by risk score), the project completely lacks ranking evaluation metrics such as NDCG (Normalized Discounted Cumulative Gain), MAP (Mean Average Precision), or Precision@K.
+
+
+-------------------------------------------------------------------------------
+PART 8 — SECURITY LOGIC
+-------------------------------------------------------------------------------
+
+How the System Determines Risk:
+Risk determination uses a hybrid approach:
+1. ML Prediction: Predicts the CVSS severity class (NONE, LOW, MEDIUM, HIGH, CRITICAL) and maps it to a normalized severity score ($S_{\text{norm}} \in [0.0, 1.0]$: NONE=0.0, LOW=0.2, MEDIUM=0.5, HIGH=0.78, CRITICAL=1.0).
+2. Weighted Linear Formula: Combines ML severity, CISA KEV flag, EPSS score, asset criticality, network exposure, and model confidence using a weighted sum.
+
+Actual Formula in Code (`src/models/risk_scorer.py`):
+
+$$\text{Raw Score} = w_{\text{cvss}} \cdot S_{\text{norm}} + w_{\text{kev}} \cdot K + w_{\text{epss}} \cdot P_{\text{epss}} + w_{\text{crit}} \cdot C_{\text{asset}} + w_{\text{exp}} \cdot E_{\text{net}} + w_{\text{conf}} \cdot \text{Conf}$$
+
+$$\text{Risk Score} = \text{round}(\text{Raw Score} \times 100, 2)$$
+
+Where default code weights (summing to 1.0) are:
+- $w_{\text{cvss}} = 0.30$ (Predicted Severity)
+- $w_{\text{kev}} = 0.25$ (CISA KEV active: 1.0 if True, 0.0 if False)
+- $w_{\text{epss}} = 0.20$ (EPSS exploitation probability: 0.0 to 1.0)
+- $w_{\text{crit}} = 0.15$ (Asset Criticality: 0.0 to 1.0, default 0.5)
+- $w_{\text{exp}} = 0.07$ (Network Exposure: 0.0 to 1.0, default 0.5)
+- $w_{\text{conf}} = 0.03$ (Model Confidence: 0.0 to 1.0)
+
+Risk Tiers & Remediation SLAs:
+- Score >= 90.0: CRITICAL_RISK (SLA: 24 hours)
+- Score >= 70.0: HIGH_RISK (SLA: 72 hours)
+- Score >= 40.0: MEDIUM_RISK (SLA: 14 days)
+- Score < 40.0: LOW_RISK (SLA: 30 days)
+
+Hypothetical Calculation Example:
+Consider CVE-2024-LOG4J:
+- Predicted Severity: CRITICAL (Class 4 -> $S_{\text{norm}} = 1.0$)
+- Model Confidence: 0.95
+- CISA KEV: Active ($K = 1.0$)
+- EPSS Score: 0.90 ($P_{\text{epss}} = 0.90$)
+- Asset Criticality: Tier 1 Core Production ($C_{\text{asset}} = 1.0$)
+- Network Exposure: Public Internet-Facing ($E_{\text{net}} = 1.0$)
+
+$$\text{Raw Score} = (0.30 \times 1.0) + (0.25 \times 1.0) + (0.20 \times 0.90) + (0.15 \times 1.0) + (0.07 \times 1.0) + (0.03 \times 0.95)$$
+$$\text{Raw Score} = 0.30 + 0.25 + 0.18 + 0.15 + 0.07 + 0.0285 = 0.9785$$
+$$\text{Risk Score} = 97.85 \longrightarrow \mathbf{CRITICAL\_RISK}$$
+
+CRITICAL DOCUMENTATION DISCREPANCY:
+The README.md presents a DIFFERENT, multiplicative formula containing asset multipliers ($M_{\text{criticality}} = 0.8\text{x--}1.3\text{x}$, $M_{\text{exposure}} = 0.6\text{x--}1.25\text{x}$). However, `risk_scorer.py` implements a strictly linear additive weighted sum of 6 normalized components. The README formula does NOT exist in the Python code.
+
+
+-------------------------------------------------------------------------------
+PART 9 — MLOps COMPONENTS
+-------------------------------------------------------------------------------
+
+Classification of MLOps Components (Evidence-Based Audit):
+
+1. Git / GitHub: IMPLEMENTED. Repository uses git version control and GitHub Actions workflows.
+2. DVC (Data Version Control): MENTIONED ONLY / PARTIALLY IMPLEMENTED. `dVC` and `dvc-s3` are listed in `requirements.txt` and mentioned in comments/README, but there is NO `.dvc` tracking directory, NO `.dvcignore`, and NO `dvc.yaml` file in the repo.
+3. MLflow: IMPLEMENTED. `VulnerabilityTrainer` logs runs, parameters, metrics, SHAP artifacts, and registers models to MLflow. MLflow is containerized in `docker-compose.yml`.
+4. Experiment Tracking: IMPLEMENTED via MLflow (`mlflow.log_params`, `mlflow.log_metric`).
+5. Model Registry: IMPLEMENTED via MLflow client in `model_loader.py` and `trainer.py`.
+6. Docker: IMPLEMENTED. Dockerfiles present for `serving`, `dashboard`, `airflow`, and `mlflow`.
+7. Docker Compose: IMPLEMENTED. Multi-container orchestration in `docker-compose.yml`.
+8. FastAPI: IMPLEMENTED in `src/serving/api/main.py`.
+9. CI/CD: IMPLEMENTED via `.github/workflows/ci_cd.yml` (runs pytest, black, flake8, docker build).
+10. Automated Testing: IMPLEMENTED. Unit and integration tests present in `tests/`.
+11. Data Validation: IMPLEMENTED via `DataValidator` using `pandera` schemas in `schema_validator.py`.
+12. Model Validation / Quality Gate: IMPLEMENTED in `src/training/quality_gate.py` (`ModelQualityGate`).
+13. Deployment: IMPLEMENTED for local/Docker deployment via Uvicorn/FastAPI.
+14. Monitoring (Operational): IMPLEMENTED via `performance_monitor.py` and `metrics_exporter.py` (Prometheus client).
+15. Logging: IMPLEMENTED via standard Python `logging` module and `loguru`.
+16. Drift Detection: IMPLEMENTED via SciPy KS-test and Population Stability Index (PSI) in `drift_detector.py`.
+17. Retraining: PLANNED / BROKEN. Defined in Airflow DAGs and `/retrain` API route, but code contains syntax/interface bugs that cause runtime crashes.
+18. Model Versioning: IMPLEMENTED via MLflow model registry version strings.
+19. Data Versioning: NOT PRESENT. DVC files are missing.
+20. Rollback: NOT PRESENT. No automated rollback mechanism exists if a promoted model fails in production.
+21. Model Promotion: PARTIALLY IMPLEMENTED. Evaluated in `quality_gate.py`, but automated promotion call in Airflow DAG references a non-existent method (`gate.promote_to_production`).
+
+
+-------------------------------------------------------------------------------
+PART 10 — ADAPTIVE / CONTINUOUS LEARNING
+-------------------------------------------------------------------------------
+
+IS THE EXISTING PROJECT GENUINELY ADAPTIVE?
+Answer: NO. "Adaptive MLOps" is NOT currently functional in this repository.
+
+Reasoning & Evidence:
+1. Ingestion to Trigger Link: `drift_monitoring_dag.py` attempts to run a statistical drift check between reference features and production inference logs (`/opt/airflow/data/inference_logs/recent_cves.parquet`). However, the FastAPI serving layer DOES NOT write inference logs to this parquet file. The drift monitor will always find no file and skip execution.
+2. Retraining DAG Execution: If retraining is triggered manually, `model_training_dag.py` crashes on line 45 (`trainer.train_and_evaluate(...)` does not exist) and line 69 (`gate.promote_to_production(...)` does not exist).
+3. Feedback Loop Integration: The `/api/v1/feedback` endpoint receives analyst corrections, but returns a static JSON success message without writing the feedback to PostgreSQL or incorporating it into future training datasets.
+
+Claimed vs Actual Adaptive Workflow:
+Claimed: Production Data -> Drift Detection -> Trigger Airflow -> Retrain Model -> Quality Gate -> Auto-Promote Champion -> Hot-Reload API.
+Actual: Drift detector is isolated code; Airflow DAGs fail on missing methods; feedback endpoint is non-functional; hot-reloading must be triggered manually.
+
+
+-------------------------------------------------------------------------------
+PART 11 — DRIFT DETECTION
+-------------------------------------------------------------------------------
+
+Monitored Elements:
+- Numerical Features: `epss_score`, `cvss_exploitability_score`, `cvss_impact_score`, `description_length`, `token_count`.
+- Categorical Features: `attack_vector`, `attack_complexity`, `privileges_required`, `user_interaction`, `scope`.
+
+Statistical Methods Implemented (`src/monitoring/drift_detector.py`):
+1. Kolmogorov-Smirnov 2-Sample Test (KS-Test): Measures distribution shift for numerical variables (significance level $\alpha = 0.05$).
+2. Population Stability Index (PSI): Measures population shift across 10 quantile bins (threshold PSI > 0.20 indicates significant drift).
+3. Chi-Square Test: Measures frequency shift for categorical variables.
+
+Thresholds & Baselines:
+- Significance Level ($\alpha$): 0.05
+- PSI Threshold: 0.20
+- Drift Share Threshold: 0.25 (if >25% of features drift, dataset drift is declared).
+- Reference Dataset: Baseline training features saved at `data/processed/features.parquet`.
+- Current Dataset: Production inference logs.
+
+Missing / Discrepant Integration:
+README.md and `requirements.txt` state that Evidently AI is used for drift monitoring. However, `src/monitoring/drift_detector.py` DOES NOT import or use Evidently AI; it uses a custom SciPy implementation. Furthermore, the API endpoint `/api/v1/drift` returns a hardcoded static dictionary regardless of actual drift.
+
+
+-------------------------------------------------------------------------------
+PART 12 — RETRAINING
+-------------------------------------------------------------------------------
+
+Retraining Trigger Type: Intended as Event-Triggered (via drift detection) and Scheduled (weekly on Sundays via Airflow).
+Data Used for Retraining: `data/processed/features.parquet`.
+
+Model Selection & Evaluation Logic:
+- Challenger model is trained on updated dataset with SMOTE.
+- `ModelQualityGate.evaluate()` compares challenger metrics to champion metrics.
+- Challenger must exceed champion Macro F1 by at least 1.0% margin while satisfying Critical Recall >= 0.88 and ECE <= 0.10.
+
+Broken Retraining Execution:
+- Automatic promotion fails because `ModelQualityGate` lacks a `promote_to_production` method.
+- Automatic rollback is NOT implemented (if a promoted model degrades in production, manual intervention is required).
+
+
+-------------------------------------------------------------------------------
+PART 13 — DEPLOYMENT
+-------------------------------------------------------------------------------
+
+Deployment Setup:
+- Local / Containerized deployment using FastAPI, Uvicorn (4 workers), and Docker Compose.
+- Docker containers: FastAPI API (`port 8000`), Dashboard (`port 8080`), MLflow (`port 5000`), Airflow (`port 8090`), Postgres (`port 5432`), MinIO (`port 9000/9001`), Redis (`port 6379`).
+
+API Endpoint Catalog (`src/serving/api/main.py`):
+
+1. METHOD: GET | PATH: `/health`
+   - INPUT: None
+   - OUTPUT: `HealthResponse` JSON (status, version, model_loaded, champion_model, database, mlflow).
+   - PURPOSE: Health check verifying DB and MLflow connectivity.
+
+2. METHOD: POST | PATH: `/api/v1/predict`
+   - INPUT: `PredictRequest` JSON (cve_id, cvss_vector_string, description, epss_score, in_cisa_kev, etc.).
+   - OUTPUT: `PredictResponse` JSON (predicted_severity, confidence, probabilities dict, model_version).
+   - PURPOSE: Severity classification with calibrated confidence scores.
+
+3. METHOD: POST | PATH: `/api/v1/risk-score`
+   - INPUT: `RiskScoreRequest` JSON (vulnerability details + asset_criticality + exposure_score).
+   - OUTPUT: `RiskScoreResponse` JSON (risk_score 0–100, risk_tier, component contributions, weights).
+   - PURPOSE: Composite risk prioritization scoring.
+
+4. METHOD: POST | PATH: `/api/v1/explain`
+   - INPUT: `ExplainRequest` JSON (vulnerability details + top_n_features).
+   - OUTPUT: `ExplainResponse` JSON (SHAP waterfall values, direction, narrative text).
+   - PURPOSE: Explainable AI prediction breakdown.
+
+5. METHOD: GET | PATH: `/api/v1/vulnerabilities`
+   - INPUT: Query parameters (limit, severity).
+   - OUTPUT: List of `VulnerabilitySummary` items.
+   - PURPOSE: List indexed vulnerabilities (RETURNING STATIC HARDCODED MOCK DATA).
+
+6. METHOD: GET | PATH: `/api/v1/vulnerabilities/{cve_id}`
+   - INPUT: `cve_id` path parameter.
+   - OUTPUT: `VulnerabilitySummary` item.
+   - PURPOSE: Get single CVE details (RETURNING STATIC HARDCODED MOCK DATA).
+
+7. METHOD: POST | PATH: `/api/v1/feedback`
+   - INPUT: `FeedbackPayload` JSON (cve_id, corrected_severity, analyst_id, notes).
+   - OUTPUT: Confirmation JSON.
+   - PURPOSE: Human analyst feedback logging (LOGS TO CONSOLE ONLY, NOT PERSISTED TO DB).
+
+8. METHOD: GET | PATH: `/api/v1/models`
+   - INPUT: None
+   - OUTPUT: Champion and challenger metadata JSON.
+   - PURPOSE: List registered models (RETURNING STATIC HARDCODED MOCK DATA).
+
+9. METHOD: GET | PATH: `/api/v1/models/compare`
+   - INPUT: None
+   - OUTPUT: Side-by-side comparison JSON.
+   - PURPOSE: Model comparison verdict (RETURNING STATIC HARDCODED MOCK DATA).
+
+10. METHOD: GET | PATH: `/api/v1/drift`
+    - INPUT: None
+    - OUTPUT: Latest drift report JSON.
+    - PURPOSE: Drift monitoring report (RETURNING STATIC HARDCODED MOCK DATA).
+
+11. METHOD: GET | PATH: `/api/v1/metrics` & `/metrics/summary`
+    - INPUT: None
+    - OUTPUT: Prometheus exposition format text / operational summary JSON.
+    - PURPOSE: Real-time Prometheus metrics export.
+
+12. METHOD: POST | PATH: `/api/v1/retrain`
+    - INPUT: None
+    - OUTPUT: Status JSON.
+    - PURPOSE: Trigger retraining (RETURNING STATIC HARDCODED MOCK RESPONSE).
+
+
+-------------------------------------------------------------------------------
+PART 14 — END-TO-END EXECUTION
+-------------------------------------------------------------------------------
+
+Step-by-Step Execution Trace:
+
+[Step 1: Synthetic Data Generation]
+- File: `scripts/seed_data.py`
+- Status: WORKING. Writes 500–3,000 synthetic records to `data/raw/vulnerabilities_dataset.parquet`.
+
+[Step 2: End-to-End Pipeline Script]
+- File: `scripts/run_pipeline.py`
+- Status: BROKEN. Crashes immediately on line 45 (`from validation.schema_validator import VulnerabilitySchemaValidator`).
+
+[Step 3: Schema Validation]
+- File: `src/validation/schema_validator.py`
+- Status: WORKING if called directly via `DataValidator()`.
+
+[Step 4: Feature Engineering]
+- File: `src/features/feature_engineer.py`
+- Status: WORKING if called directly via `FeatureEngineer()`.
+
+[Step 5: Temporal CV & Model Training]
+- File: `src/training/trainer.py`
+- Status: WORKING if called directly via `VulnerabilityTrainer.train(df_features)`.
+
+[Step 6: Model Quality Gate]
+- File: `src/training/quality_gate.py`
+- Status: WORKING if called directly via `ModelQualityGate.evaluate(metrics)`.
+
+[Step 7: Risk Prioritization]
+- File: `src/models/risk_scorer.py`
+- Status: WORKING if called directly via `RiskScorer.score(...)`.
+
+[Step 8: Serving API Startup]
+- File: `src/serving/api/main.py`
+- Status: WORKING. API launches on port 8000 and mounts static dashboard.
+
+[Step 9: Serving API Inference Routes]
+- Routes: `/predict`, `/risk-score`, `/explain`
+- Status: WORKING (uses model if loaded in MLflow, or falls back to heuristic scoring).
+
+[Step 10: Serving API Metadata / Operational Routes]
+- Routes: `/vulnerabilities`, `/models`, `/drift`, `/retrain`
+- Status: MOCK ONLY. Returns static hardcoded dictionaries.
+
+[Step 11: Airflow Orchestration DAGs]
+- Files: `data_ingestion_dag.py`, `drift_monitoring_dag.py`, `model_training_dag.py`
+- Status: BROKEN. Crashes due to method/class mismatches.
+
+
+-------------------------------------------------------------------------------
+PART 15 — WHAT IS REAL VS CLAIMED
+-------------------------------------------------------------------------------
+
+IMPLEMENTATION REALITY CHECK
+-----------------------------------------------------------------------------------------------------------
+CLAIM / EXPECTED FEATURE         | ACTUAL IMPLEMENTATION                | EVIDENCE IN CODE             | STATUS
+-----------------------------------------------------------------------------------------------------------
+Vulnerability Detection          | Severity classification of known CVEs| `severity_classifier.py`     | MISLEADING TITLE
+Automatic Retraining Trigger     | Broken Airflow DAGs                  | `model_training_dag.py:45`   | BROKEN
+Evidently AI Drift Monitoring    | Custom SciPy KS/PSI statistical tests| `drift_detector.py`          | CLAIM MISMATCH
+DVC Data Versioning              | Listed in requirements, no files     | No `dvc.yaml` in repo        | MENTIONED ONLY
+SHAP Explainability              | TreeExplainer with text generator    | `explainer.py`               | IMPLEMENTED
+Multiplicative Risk Score        | Additive linear weighted sum formula | `risk_scorer.py:161`         | FORMULA DISCREPANCY
+Live NVD 2.0 Ingestion Pipeline  | API client written, DAG call broken   | `data_ingestion_dag.py:36`   | BROKEN DAG
+Dynamic Model Registry API       | Endpoint returns static hardcoded JSON| `routes/models.py:11`        | MOCK RESPONSE
+Analyst Feedback Retraining Loop | Console log output only, no DB write | `routes/feedback.py:19`      | INCOMPLETE
+Temporal Validation              | Time-aware split on repetitive data  | `cross_validation.py`        | FLAWED DATASET
+-----------------------------------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+PART 16 — TECHNICAL PROBLEMS / BUGS
+-------------------------------------------------------------------------------
+
+1. ISSUE: Missing Module `src/features/pipeline.py`
+   - Impact: Critical runtime crash (`ImportError`).
+   - Evidence: `scripts/run_pipeline.py` (line 58) and `airflow/dags/data_ingestion_dag.py` (line 77) execute `from features.pipeline import FeaturePipeline`. No such file exists in `src/features/`.
+   - Severity: HIGH.
+   - Correction: Remove the import and instantiate `FeatureEngineer` directly from `src/features/feature_engineer.py`.
+
+2. ISSUE: Missing Class `VulnerabilitySchemaValidator`
+   - Impact: Critical runtime crash (`ImportError`).
+   - Evidence: `scripts/run_pipeline.py` (line 45) and `airflow/dags/data_ingestion_dag.py` (line 59) execute `from validation.schema_validator import VulnerabilitySchemaValidator`. The actual class defined in `schema_validator.py` is `DataValidator`.
+   - Severity: HIGH.
+   - Correction: Rename import to `DataValidator`.
+
+3. ISSUE: Non-Existent Method `calculate_risk` Called on `RiskScorer`
+   - Impact: Critical runtime crash (`AttributeError`).
+   - Evidence: `scripts/run_pipeline.py` (line 88) calls `scorer.calculate_risk(...)`. The method implemented in `src/models/risk_scorer.py` is `score(...)`.
+   - Severity: HIGH.
+   - Correction: Update call in `run_pipeline.py` to `scorer.score(...)`.
+
+4. ISSUE: Non-Existent Method `fetch_recent_cves` Called on `NVDClient`
+   - Impact: Airflow DAG crash (`AttributeError`).
+   - Evidence: `airflow/dags/data_ingestion_dag.py` (line 36) calls `client.fetch_recent_cves(days=7)`. `NVDClient` in `nvd_client.py` only implements `fetch_cves_since(...)`.
+   - Severity: HIGH.
+   - Correction: Update DAG task to call `client.fetch_cves_since(...)`.
+
+5. ISSUE: Non-Existent Method `fetch_catalog` Called on `CISAKEVClient`
+   - Impact: Airflow DAG crash (`AttributeError`).
+   - Evidence: `airflow/dags/data_ingestion_dag.py` (line 48) calls `client.fetch_catalog()`. `CISAKEVClient` in `cisa_kev_client.py` implements `fetch()`.
+   - Severity: HIGH.
+   - Correction: Update DAG task to call `client.fetch(...)`.
+
+6. ISSUE: Non-Existent Method `train_and_evaluate` Called on `VulnerabilityTrainer`
+   - Impact: Pipeline script and Airflow DAG crash (`AttributeError`).
+   - Evidence: `scripts/run_pipeline.py` (line 77) and `airflow/dags/model_training_dag.py` (line 45) call `trainer.train_and_evaluate(...)`. `VulnerabilityTrainer` in `trainer.py` only implements `train(...)`.
+   - Severity: HIGH.
+   - Correction: Update calls to `trainer.train(df_features)`.
+
+7. ISSUE: Non-Existent Method `promote_to_production` Called on `ModelQualityGate`
+   - Impact: Airflow DAG crash (`AttributeError`).
+   - Evidence: `airflow/dags/model_training_dag.py` (line 69) calls `gate.promote_to_production(...)`. `ModelQualityGate` in `quality_gate.py` does NOT implement model promotion logic.
+   - Severity: HIGH.
+   - Correction: Implement MLflow promotion logic using `mlflow.tracking.MlflowClient()`.
+
+8. ISSUE: Method Signature Mismatch in `ModelQualityGate.evaluate()`
+   - Impact: Airflow DAG crash (`TypeError` / `ValueError`).
+   - Evidence: `airflow/dags/model_training_dag.py` (line 65) calls `gate.evaluate(metrics, run_id=run_id)` and expects a tuple `(passed, report)`. `ModelQualityGate.evaluate()` accepts `(metrics, champion_metrics=None)` and returns a single `dict`.
+   - Severity: HIGH.
+   - Correction: Align parameter names and unpack `report["passed"]` from the returned dict.
+
+9. ISSUE: Risk Score Formula Discrepancy (README vs Code)
+   - Impact: Misleading documentation and unexpected scoring behavior.
+   - Evidence: README.md documents a multiplicative formula with criticality and exposure multipliers ($M_{\text{crit}} \in [0.8, 1.3]$, $M_{\text{exp}} \in [0.6, 1.25]$). `src/models/risk_scorer.py` implements a strictly linear additive weighted sum of 6 components.
+   - Severity: MEDIUM.
+   - Correction: Synchronize the formula in documentation and code.
+
+10. ISSUE: Static Mock Responses in API Routes
+    - Impact: API endpoints return fake data instead of real system state.
+    - Evidence: `routes/vulnerabilities.py`, `routes/models.py`, `routes/drift.py`, `routes/metrics.py`, and `routes/retrain.py` return static hardcoded Python dictionaries.
+    - Severity: MEDIUM.
+    - Correction: Connect endpoints to PostgreSQL database and MLflow tracking client.
+
+11. ISSUE: Analyst Feedback Endpoint Does Not Persist Data
+    - Impact: Analyst corrections are lost upon request completion.
+    - Evidence: `routes/feedback.py` returns `{ "status": "success", "recorded": payload.dict() }` without inserting records into the `analyst_feedback` PostgreSQL table created in `init.sql`.
+    - Severity: MEDIUM.
+    - Correction: Add SQLAlchemy database session to insert feedback records.
+
+12. ISSUE: Missing DVC Configuration & Version Files
+    - Impact: Data versioning claim is invalid.
+    - Evidence: `dvc` is included in `requirements.txt`, but no `.dvc` folder, `.dvcignore`, or `dvc.yaml` pipeline definition exists in the workspace.
+    - Severity: LOW / DOCUMENTATION.
+    - Correction: Initialize `dvc init` and create `dvc.yaml`.
+
+13. ISSUE: Synthetic Dataset Generator Produces Duplicate Templates
+    - Impact: Artificially inflated model evaluation metrics (Macro F1 = 0.894).
+    - Evidence: `scripts/seed_data.py` randomly picks from 8 static dictionaries in `SAMPLE_VULNERABILITIES`. Across 3,000 generated records, feature combinations are identical, making test set evaluation trivial and unrealistic.
+    - Severity: HIGH (ML Methodology).
+    - Correction: Seed data using real historical NVD API dumps or construct a diverse synthetic generator.
+
+
+-------------------------------------------------------------------------------
+PART 17 — DATA LEAKAGE INVESTIGATION
+-------------------------------------------------------------------------------
+
+1. CVSS Base Score / Severity (Target Leakage):
+   - Status: CLEANLY PREVENTED in `feature_engineer.py` and `cvss_parser.py`.
+   - Detail: The pipeline explicitly excludes `base_score`, `base_severity`, `exploitability_score`, and `impact_score` from the input feature set (`ALL_FEATURES`). Features are derived solely from vector string submetrics (`av_network`, `ac_low`, etc.), text regex matches, CWEs, and metadata.
+
+2. EPSS Scores & CISA KEV Listings (Temporal Leakage):
+   - Status: POTENTIAL TEMPORAL LEAKAGE PRESENT.
+   - Investigation:
+     "Would EPSS scores and CISA KEV listing status be available at the exact moment a vulnerability is published?"
+     Answer: NO.
+     - EPSS scores evolve daily based on emerging threat activity over time.
+     - CISA KEV listings are added weeks, months, or years AFTER a CVE is published (when active exploitation is observed in the wild).
+     - In `feature_engineer.py`, `in_cisa_kev` and `epss_score` are included as features in `ALL_FEATURES` used by `SeverityClassifier`.
+     - If the model is evaluated on predicting the severity of a newly published CVE using EPSS scores or KEV flags collected *after* publication, this constitutes **temporal data leakage**.
+   - Impact: Model relies on future threat signals to predict initial CVSS severity, which is impossible at publication time.
+
+
+-------------------------------------------------------------------------------
+PART 18 — TEMPORAL VALIDATION
+-------------------------------------------------------------------------------
+
+Validation Methodology Evaluation:
+- `src/training/cross_validation.py` defines `TemporalCrossValidator`, which sorts records by `year_published` and performs a strict temporal train/validation/test split (70% oldest, 15% middle, 15% newest) or walk-forward CV folds.
+- In theory, temporal splitting is the CORRECT methodology for vulnerability prediction because it simulates predicting future CVEs from past historical data without future leakage.
+- IN PRACTICE (in this repository):
+  `scripts/seed_data.py` generates synthetic publication dates (2021 to 2025) randomly assigned to the 8 static template vulnerabilities. Because the underlying vulnerability templates in 2025 are identical to those in 2021, the temporal split has NO EFFECT on evaluating time-based distribution shifts or concept drift. The evaluation remains flawed despite the time-aware code.
+
+
+-------------------------------------------------------------------------------
+PART 19 — REPRODUCIBILITY
+-------------------------------------------------------------------------------
+
+Reproducibility Audit:
+- Random Seeds: Explicitly set in `scripts/seed_data.py` (`random.seed(42)`, `np.random.seed(42)`), `trainer.py` (SMOTE `random_state=42`), and `severity_classifier.py` (`random_state=42`).
+- Environment Setup: `requirements.txt` and `requirements-dev.txt` provide exact version pins for major dependencies (`pandas==2.2.2`, `scikit-learn==1.5.1`, `xgboost==2.0.3`, `fastapi==0.111.1`).
+- Execution Test:
+  Attempting to run `python scripts/run_pipeline.py` FAILS with:
+  `ModuleNotFoundError: No module named 'features.pipeline'`
+  Another student CANNOT clone and run the project out-of-the-box without editing code.
+
+Steps to Fix Reproducibility locally:
+1. Fix imports in `scripts/run_pipeline.py` (use `FeatureEngineer` and `DataValidator`).
+2. Fix method calls (`trainer.train(df_features)` and `scorer.score(...)`).
+3. Run `python scripts/seed_data.py --samples 1000`.
+4. Run `python scripts/run_pipeline.py`.
+
+
+-------------------------------------------------------------------------------
+PART 20 — WHAT WE COULD REUSE
+-------------------------------------------------------------------------------
+
+Category Breakdown for Existing Project Code:
+
+[KEEP / REUSE] (High technical quality, clean implementation)
+1. `src/features/cvss_parser.py`: Excellent vector string parser converting CVSS v3.x strings into structured one-hot features.
+2. `src/models/severity_classifier.py`: Well-written XGBoost classifier with Isotonic probability calibration and ECE calculation.
+3. `src/models/explainer.py`: Clean SHAP TreeExplainer integration with fallback explanation logic.
+4. `src/ingestion/nvd_client.py`: Robust NVD 2.0 API client featuring rate limiting, backoff, and pagination.
+5. `src/ingestion/cisa_kev_client.py` & `epss_client.py`: Clean API connectors with ETag caching.
+6. `docker-compose.yml` & `docker/`: Well-configured multi-container orchestration.
+7. `.github/workflows/ci_cd.yml`: Clean CI/CD workflow template.
+
+[MODIFY] (Good foundation, requires bug fixes or logic updates)
+1. `src/models/risk_scorer.py`: Needs synchronization with README documentation or adoption of a non-linear risk formula.
+2. `src/validation/schema_validator.py`: Rename class or export alias `VulnerabilitySchemaValidator` for script compatibility.
+3. `src/training/trainer.py`: Add `train_and_evaluate()` wrapper method for backwards compatibility with scripts.
+4. `src/training/quality_gate.py`: Add `promote_to_production()` method interacting with MLflow registry client.
+5. `src/monitoring/drift_detector.py`: Integrate actual Evidently AI reports alongside custom SciPy PSI metrics.
+6. `src/serving/api/routes/*.py`: Replace static mock responses with real PostgreSQL and MLflow queries.
+
+[REBUILD] (Fundamentally flawed or missing)
+1. `airflow/dags/*.py`: Rebuild all 3 Airflow DAGs to use correct module imports and valid object method signatures.
+2. `scripts/seed_data.py`: Rebuild synthetic data generator to draw from real NVD JSON dumps or generate diverse non-template records.
+3. `scripts/run_pipeline.py`: Rebuild runner script to correctly chain valid system modules.
+
+[REMOVE] (Unused or misleading files)
+1. Delete hardcoded static mock responses in API routes.
+2. Remove unverified claims of "Vulnerability Detection" from documentation.
+
+
+-------------------------------------------------------------------------------
+PART 21 — IF WE BUILD OUR OWN VERSION
+-------------------------------------------------------------------------------
+
+Proposed Clean Architecture Blueprint:
+
+1. Problem Definition:
+   "Adaptive MLOps Platform for CVE Severity Classification & Contextual Risk Prioritization"
+   Explicitly separate severity classification (ML task) from risk prioritization (contextual scoring engine).
+
+2. Data Pipeline:
+   - Automated ingestion from NVD 2.0 REST API, CISA KEV JSON, and FIRST EPSS API stored in PostgreSQL database.
+   - Version raw data snapshots using DVC linked to MinIO (S3) bucket.
+
+3. Feature Engineering:
+   - Parse CVSS v3.1 vector strings into 22 binary submetric features.
+   - Text features: TF-IDF vectorization (top 300 n-grams) on CVE descriptions + domain keyword flags.
+   - CWE hierarchical category mapping.
+   - STRICT LEAKAGE GUARD: Exclude EPSS and CISA KEV from severity classification training features; use them ONLY in the post-ML risk prioritization stage.
+
+4. ML Formulation:
+   - Target: Ordinal 5-class severity (`NONE`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`).
+   - Algorithms: XGBoost / LightGBM baseline vs Fine-Tuned DeBERTa-v3 NLP classifier for description-only records.
+   - Calibration: Isotonic Regression to ensure output class probabilities equal empirical accuracy.
+
+5. Evaluation Strategy:
+   - Primary Metric: Macro F1 and Critical Class Recall.
+   - Calibration Metric: Expected Calibration Error (ECE < 0.08).
+   - Validation Split: Time-aware walk-forward temporal cross-validation based on actual CVE publication dates.
+
+6. Risk Prioritization Logic:
+   - Non-linear composite risk formula:
+     $$\text{Risk Score} = \left( 0.40 \cdot S_{\text{ML}} + 0.35 \cdot P_{\text{EPSS}} + 0.25 \cdot I_{\text{KEV}} \right) \times M_{\text{criticality}} \times M_{\text{exposure}}$$
+   - Clamped to $[0, 100]$ and mapped to 4 SLA remediation tiers.
+
+7. MLOps Architecture:
+   - Experiment Tracking: MLflow with S3 artifact store and PostgreSQL backend.
+   - Orchestration: Apache Airflow DAGs with tested PythonOperators.
+   - Model Registry: Champion / Challenger staging with automated Quality Gate enforcement.
+
+8. Drift Detection:
+   - Evidently AI data drift reports generated daily comparing 30-day inference window against baseline training distribution.
+   - Monitor PSI (>0.20) and Wasserstein distance.
+
+9. Retraining:
+   - Automatic Airflow retraining DAG triggered when dataset drift share > 25%.
+   - Train challenger model -> evaluate quality gate -> compare champion vs challenger -> promote via MLflow API if challenger exceeds champion F1 by >=1.0%.
+
+10. Deployment & Monitoring:
+    - FastAPI serving layer with real-time SHAP explanations.
+    - Prometheus metrics exporter tracking latency (p95 < 50ms), throughput, and prediction distributions.
+    - Full executive React or HTML/JS dashboard displaying real dynamic metrics.
+
+What Makes it Genuinely "Adaptive MLOps":
+1. Automated Feedback Loop: Real analyst label corrections submitted via `/feedback` are stored in PostgreSQL and automatically included as weighted samples in the next retraining run.
+2. Automated Drift-Triggered Retraining: Real inference logs trigger retraining without human intervention when feature distributions drift.
+3. Champion/Challenger Shadow Evaluation: Challenger model automatically runs in shadow mode on live traffic, comparing real-world latency and agreement before promotion.
+
+
+-------------------------------------------------------------------------------
+PART 22 — FINAL VERDICT
+-------------------------------------------------------------------------------
+
+A. What the project is actually doing:
+   It provides a complete codebase structure for an ML pipeline that classifies CVSS severity using XGBoost and scores risk using a weighted formula. It includes a dark-mode web dashboard, FastAPI backend, MLflow tracking, and Airflow DAGs.
+
+B. What is technically correct:
+   - CVSS submetric vector parsing (`cvss_parser.py`) is technically sound and correctly avoids base score target leakage.
+   - Model calibration (`CalibratedClassifierCV` with Isotonic Regression) and ECE metric calculations are mathematically correct.
+   - SHAP TreeExplainer integration (`explainer.py`) is well-implemented.
+   - Raw API clients (`nvd_client.py`, `cisa_kev_client.py`, `epss_client.py`) have robust error handling and rate limiting.
+   - Docker Compose and PostgreSQL database schemas are complete and functional.
+
+C. What is questionable:
+   - The synthetic dataset generator (`seed_data.py`) creates repetitive template-based records, producing artificially high evaluation metrics (~0.89 F1).
+   - Including EPSS scores and CISA KEV listing status in the severity prediction feature set introduces temporal data leakage if evaluated at publication time.
+
+D. What is missing:
+   - True DVC tracking files (`dvc.yaml`, `.dvc` folder) are missing despite claims.
+   - Evidently AI integration is missing in code (replaced by custom SciPy scripts).
+   - Real database persistence in API routes is missing (routes return hardcoded static mock responses).
+
+E. What is misleading or overstated:
+   - "Vulnerability Detection" in title/README is false; the project only classifies existing CVEs.
+   - "Adaptive MLOps" is overstated; automated retraining DAGs crash due to syntax/interface bugs, and feedback is not persisted.
+   - The risk formula in README.md (multiplicative) does not match the code in `risk_scorer.py` (additive linear).
+
+F. What can be reused:
+   - `src/features/cvss_parser.py` (100% reusable).
+   - `src/models/severity_classifier.py` (100% reusable).
+   - `src/models/explainer.py` (100% reusable).
+   - `src/ingestion/*.py` (100% reusable client classes).
+   - `docker-compose.yml`, `docker/`, `.github/workflows/ci_cd.yml` (100% reusable infrastructure).
+
+G. What should be rebuilt:
+   - All Airflow DAGs (`airflow/dags/*.py`).
+   - Pipeline runner script (`scripts/run_pipeline.py`).
+   - Synthetic data generator (`scripts/seed_data.py`).
+   - Mock API routes (`routes/vulnerabilities.py`, `routes/models.py`, `routes/drift.py`, `routes/feedback.py`).
+
+H. The biggest technical risks:
+   - Attempting to present or run the project in its current state will result in immediate Python runtime exceptions (`ImportError` and `AttributeError` in runner script and DAGs).
+   - Relying on the reported 0.89 F1 metric without recognizing synthetic data duplication artifacts.
+
+I. Recommended direction for our own Course Project:
+   DO NOT BUILD FROM SCRATCH, BUT DO NOT USE AS-IS.
+   Recommendation: Adopt Option 2 & 3 ("Reuse Core Modules + Modify & Fix Broken Pipeline").
+   - Reuse the excellent docker infrastructure, CVSS parser, severity classifier, SHAP explainer, API clients, and UI dashboard styling.
+   - Fix the 13 identified bug locations (import paths, method signatures, DAG code).
+   - Replace static mock API routes with real PostgreSQL database queries.
+   - Ingest real historical NVD data (or generate non-template synthetic data) to achieve genuine temporal validation and operational adaptive MLOps.
+
+===============================================================================
+END OF AUDIT REPORT
+===============================================================================

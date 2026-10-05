@@ -1,0 +1,14 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  # Demo app (prom-demo/app.py) - guide metrics + simulated vulnerability traffic
+  - job_name: "python_app"
+    static_configs:
+      - targets: ["localhost:8001"]
+
+  # Real project API running in Docker (docker compose up)
+  - job_name: "vuln_api"
+    metrics_path: /api/v1/metrics
+    static_configs:
+      - targets: ["localhost:8000"]

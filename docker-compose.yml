@@ -1,0 +1,238 @@
+# =============================================================================
+# Adaptive MLOps - Vulnerability Detection & Risk Prioritization
+# Docker Compose - Full Production Stack
+# =============================================================================
+
+
+
+x-airflow-common: &airflow-common
+  build:
+    context: ./docker/airflow
+    dockerfile: Dockerfile
+  env_file: .env
+  environment:
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/airflow_db
+    AIRFLOW__CELERY__BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/airflow_db
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY}
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW__WEBSERVER__SECRET_KEY}
+    AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
+    MLFLOW_TRACKING_URI: http://mlflow:5000
+    NVD_API_KEY: ${NVD_API_KEY}
+    DATABASE_URL: ${DATABASE_URL}
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/plugins:/opt/airflow/plugins
+    - ./src:/opt/airflow/src
+    - ./configs:/opt/airflow/configs
+    - ./data:/opt/airflow/data
+    - airflow-logs:/opt/airflow/logs
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  networks:
+    - mlops-network
+
+services:
+  # ──────────────────────────────────────────────────────────────
+  # Infrastructure
+  # ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: vuln-postgres
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_MULTIPLE_DATABASES: vuln_mlops,airflow_db,mlflow_db
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./docker/postgres/create_multiple_dbs.sh:/docker-entrypoint-initdb.d/00-create_multiple_dbs.sh
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mlops-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: vuln-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    env_file: .env
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mlops-network
+
+  # ──────────────────────────────────────────────────────────────
+  # MLflow (local filesystem artifact store - no MinIO needed)
+  # ──────────────────────────────────────────────────────────────
+  mlflow:
+    build:
+      context: ./docker/mlflow
+      dockerfile: Dockerfile
+    container_name: vuln-mlflow
+    env_file: .env
+    command: >
+      mlflow server
+      --backend-store-uri postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/mlflow_db
+      --artifacts-destination /mlflow/artifacts
+      --host 0.0.0.0
+      --port 5000
+      --serve-artifacts
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-artifacts:/mlflow/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    networks:
+      - mlops-network
+
+  # ──────────────────────────────────────────────────────────────
+  # Airflow
+  # ──────────────────────────────────────────────────────────────
+  airflow-init:
+    <<: *airflow-common
+    container_name: vuln-airflow-init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db upgrade
+        airflow users create \
+          --username ${AIRFLOW_ADMIN_USER} \
+          --password ${AIRFLOW_ADMIN_PASSWORD} \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email ${AIRFLOW_ADMIN_EMAIL} || true
+        echo "Airflow initialized"
+    restart: "no"
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: vuln-airflow-webserver
+    command: airflow webserver
+    ports:
+      - "8090:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: vuln-airflow-scheduler
+    command: airflow scheduler
+    restart: unless-stopped
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-worker:
+    <<: *airflow-common
+    container_name: vuln-airflow-worker
+    command: airflow celery worker
+    restart: unless-stopped
+    depends_on:
+      airflow-scheduler:
+        condition: service_started
+
+  # ──────────────────────────────────────────────────────────────
+  # FastAPI Inference Service
+  # ──────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: src/serving/Dockerfile
+    container_name: vuln-api
+    env_file: .env
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src
+      - ./configs:/app/configs
+      - ./data:/app/data
+      - ./scripts:/app/scripts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - mlops-network
+
+  # ──────────────────────────────────────────────────────────────
+  # Professional Dashboard
+  # ──────────────────────────────────────────────────────────────
+  dashboard:
+    build:
+      context: ./src/dashboard
+      dockerfile: Dockerfile
+    container_name: vuln-dashboard
+    env_file: .env
+    ports:
+      - "8080:80"
+    environment:
+      API_BASE_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - mlops-network
+
+# ──────────────────────────────────────────────────────────────
+# Volumes
+# ──────────────────────────────────────────────────────────────
+volumes:
+  postgres-data:
+  redis-data:
+  mlflow-artifacts:
+  airflow-logs:
+
+# ──────────────────────────────────────────────────────────────
+# Networks
+# ──────────────────────────────────────────────────────────────
+networks:
+  mlops-network:
+    driver: bridge

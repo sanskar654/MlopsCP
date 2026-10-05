@@ -1,0 +1,33 @@
+# Model Training & Hyperparameter Configuration
+model:
+  type: "xgboost"
+  target_column: "base_severity"
+  classes: ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+
+hyperparameters:
+  n_estimators: 300
+  max_depth: 6
+  learning_rate: 0.05
+  subsample: 0.8
+  colsample_bytree: 0.8
+  min_child_weight: 3
+  gamma: 0.1
+  scale_pos_weight: 1.0
+  tree_method: "hist"
+  random_state: 42
+
+sampling:
+  method: "SMOTE"
+  k_neighbors: 5
+  random_state: 42
+
+calibration:
+  method: "isotonic"
+  cv: 5
+
+quality_gate:
+  min_macro_f1: 0.82
+  min_critical_recall: 0.88
+  max_ece: 0.10
+  max_latency_p95_ms: 50.0
+  champion_f1_margin: 0.005

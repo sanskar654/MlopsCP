@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Software Vulnerability Severity Classification & Contextual Risk Prioritization Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <!-- Bootstrap Icons CDN -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header class="navbar">
+    <div class="brand-wrapper">
+      <div class="brand-icon">
+        <i class="bi bi-shield-lock-fill"></i>
+      </div>
+      <div class="brand-text">
+        <h1>Software Vulnerability Severity Classification &amp; Risk Prioritization</h1>
+        <span>Adaptive MLOps Enterprise Platform | Threat Intelligence &amp; SLA Automation</span>
+      </div>
+    </div>
+    <div class="nav-status">
+      <div class="badge-status">
+        <span class="dot online"></span> <i class="bi bi-hdd-network"></i> API Status: Online (v1.0)
+      </div>
+      <div class="badge-status" id="mlflowVersionBadge">
+        <span class="dot sync"></span> <i class="bi bi-cpu-fill"></i> Model: XGBoost v2.4
+      </div>
+      <div class="badge-status">
+        <span class="dot online"></span> <i class="bi bi-activity"></i> Drift: Nominal (PSI &lt; 0.2)
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Top KPI Ribbon -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-header-row">
+          <span class="metric-title">Total Ingested CVEs</span>
+          <div class="metric-icon-bubble"><i class="bi bi-database-fill-down"></i></div>
+        </div>
+        <div class="metric-value" id="kpiTotalCves">246,819</div>
+        <div class="metric-sub"><i class="bi bi-arrow-up-right-circle-fill"></i> +1,420 synced today (NVD 2.0 API)</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-header-row">
+          <span class="metric-title">Critical &amp; High Risk CVEs</span>
+          <div class="metric-icon-bubble"><i class="bi bi-exclamation-triangle-fill"></i></div>
+        </div>
+        <div class="metric-value" id="kpiHighRisk">48,210</div>
+        <div class="metric-sub"><i class="bi bi-clock-history"></i> 19.5% require immediate SLA action</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-header-row">
+          <span class="metric-title">ML Champion Macro F1</span>
+          <div class="metric-icon-bubble"><i class="bi bi-check-circle-fill"></i></div>
+        </div>
+        <div class="metric-value" id="kpiMacroF1">0.894</div>
+        <div class="metric-sub"><i class="bi bi-shield-check"></i> Quality Gate Passed (&ge; 0.82)</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-header-row">
+          <span class="metric-title">Inference Latency (p95)</span>
+          <div class="metric-icon-bubble"><i class="bi bi-speedometer2"></i></div>
+        </div>
+        <div class="metric-value" id="kpiLatency">18.4ms</div>
+        <div class="metric-sub"><i class="bi bi-lightning-fill"></i> SLA Compliant (&lt; 50ms)</div>
+      </div>
+    </div>
+
+    <!-- Main Section Tabs Navigation -->
+    <div class="tabs-nav">
+      <button class="tab-btn active" data-tab="tab-overview"><i class="bi bi-bar-chart-line-fill"></i> Overview &amp; SOC Dashboard</button>
+      <button class="tab-btn" data-tab="tab-explorer"><i class="bi bi-search"></i> Vulnerability Intelligence Explorer</button>
+      <button class="tab-btn" data-tab="tab-predict"><i class="bi bi-lightning-charge-fill"></i> Live Severity &amp; Risk Predictor</button>
+      <button class="tab-btn" data-tab="tab-assets"><i class="bi bi-building-fill"></i> Enterprise Asset Risk Manager</button>
+      <button class="tab-btn" data-tab="tab-mlops"><i class="bi bi-graph-up-arrow"></i> MLOps &amp; Statistical Drift Monitor</button>
+      <button class="tab-btn" data-tab="tab-architecture"><i class="bi bi-diagram-3-fill"></i> System Architecture &amp; Data Flow</button>
+    </div>
+
+    <!-- Page 1: Overview & SOC Dashboard -->
+    <div id="tab-overview" class="tab-pane active">
+      <div class="dashboard-grid">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><i class="bi bi-shield-fill-exclamation"></i> High Priority Threat Alerts &amp; Urgent SLAs</h2>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>CVE ID</th>
+                  <th>Severity Label</th>
+                  <th>CISA KEV</th>
+                  <th>EPSS Score</th>
+                  <th>Risk Score</th>
+                  <th>Remediation SLA</th>
+                </tr>
+              </thead>
+              <tbody id="overviewAlertsTable">
+                <tr>
+                  <td><code>CVE-2021-44228</code></td>
+                  <td><span class="priority-badge CRITICAL">CRITICAL</span></td>
+                  <td><span class="tag-kev"><i class="bi bi-fire"></i> ACTIVE KEV</span></td>
+                  <td>97.5%</td>
+                  <td><strong style="color: var(--critical);">96.8 / 100</strong></td>
+                  <td><span class="sla-urgent"><i class="bi bi-alarm-fill"></i> 24 Hours (URGENT)</span></td>
+                </tr>
+                <tr>
+                  <td><code>CVE-2023-38606</code></td>
+                  <td><span class="priority-badge HIGH">HIGH</span></td>
+                  <td><span class="tag-kev"><i class="bi bi-fire"></i> ACTIVE KEV</span></td>
+                  <td>81.2%</td>
+                  <td><strong style="color: var(--high);">84.2 / 100</strong></td>
+                  <td><span class="sla-urgent"><i class="bi bi-alarm-fill"></i> 72 Hours</span></td>
+                </tr>
+                <tr>
+                  <td><code>CVE-2024-21626</code></td>
+                  <td><span class="priority-badge HIGH">HIGH</span></td>
+                  <td><span class="tag-none"><i class="bi bi-shield"></i> No KEV</span></td>
+                  <td>45.0%</td>
+                  <td><strong style="color: var(--medium);">68.5 / 100</strong></td>
+                  <td><span>7 Days</span></td>
+                </tr>
+                <tr>
+                  <td><code>CVE-2024-1002</code></td>
+                  <td><span class="priority-badge LOW">LOW</span></td>
+                  <td><span class="tag-none"><i class="bi bi-shield"></i> No KEV</span></td>
+                  <td>1.2%</td>
+                  <td><strong style="color: var(--low);">18.4 / 100</strong></td>
+                  <td><span>30 Days</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><i class="bi bi-pie-chart-fill"></i> Enterprise Vulnerability Severity Distribution</h2>
+          </div>
+          <div style="max-height: 280px; display: flex; justify-content: center;">
+            <canvas id="overviewPieChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page 2: Vulnerability Intelligence Explorer -->
+    <div id="tab-explorer" class="tab-pane">
+      <div class="card">
+        <div class="card-header" style="flex-wrap: wrap; gap: 1rem;">
+          <h2 class="card-title"><i class="bi bi-search"></i> Searchable CVE Intelligence Database</h2>
+          <div class="filter-controls" style="display: flex; gap: 0.75rem; align-items: center;">
+            <input type="text" id="explorerSearch" placeholder="Search by CVE ID, keyword, or vendor..." style="width: 280px; display: inline-block;">
+            <select id="explorerSeverity" style="width: 150px; display: inline-block;">
+              <option value="ALL">All Severities</option>
+              <option value="CRITICAL">CRITICAL Only</option>
+              <option value="HIGH">HIGH Only</option>
+              <option value="MEDIUM">MEDIUM Only</option>
+              <option value="LOW">LOW Only</option>
+            </select>
+            <button id="explorerRefreshBtn" class="btn-primary" style="width: auto; padding: 0.65rem 1rem;"><i class="bi bi-arrow-repeat"></i> Sync Records</button>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>CVE ID</th>
+                <th>Vendor / Product</th>
+                <th>CWE</th>
+                <th>Predicted Severity</th>
+                <th>CVSS Score</th>
+                <th>CISA KEV</th>
+                <th>EPSS Prob</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="explorerTableBody">
+              <tr>
+                <td colspan="8" style="text-align: center; color: var(--text-secondary);">Loading vulnerabilities from database...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page 3: Live Severity & Risk Predictor -->
+    <div id="tab-predict" class="tab-pane">
+      <div class="dashboard-grid">
+        <!-- Input Form -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><i class="bi bi-sliders"></i> Vulnerability Telemetry &amp; Asset Context</h2>
+          </div>
+          <form id="predictionForm">
+            <div class="form-group">
+              <label for="cve_desc">Vulnerability Description / Advisory Text</label>
+              <textarea id="cve_desc" rows="3" placeholder="Paste CVE advisory text...">Apache Log4j2 2.0-beta9 through 2.14.1 JNDI features allow unauthenticated remote code execution via LDAP and RMI lookups.</textarea>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="attack_vector">Attack Vector (AV)</label>
+                <select id="attack_vector">
+                  <option value="NETWORK" selected>NETWORK (Remote / Public)</option>
+                  <option value="ADJACENT_NETWORK">ADJACENT NETWORK</option>
+                  <option value="LOCAL">LOCAL</option>
+                  <option value="PHYSICAL">PHYSICAL</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="attack_complexity">Attack Complexity (AC)</label>
+                <select id="attack_complexity">
+                  <option value="LOW" selected>LOW (Trivial execution)</option>
+                  <option value="HIGH">HIGH (Complex prerequisites)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="privileges_required">Privileges Required (PR)</label>
+                <select id="privileges_required">
+                  <option value="NONE" selected>NONE (Unauthenticated)</option>
+                  <option value="LOW">LOW (Basic user)</option>
+                  <option value="HIGH">HIGH (Admin/Root)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="user_interaction">User Interaction (UI)</label>
+                <select id="user_interaction">
+                  <option value="NONE" selected>NONE (Zero-click attack)</option>
+                  <option value="REQUIRED">REQUIRED (Victim interaction)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="epss_score">EPSS Exploitation Probability (0.0 - 1.0)</label>
+                <input type="number" id="epss_score" min="0" max="1" step="0.01" value="0.97">
+              </div>
+              <div class="form-group">
+                <label>CISA KEV Catalog Status</label>
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.35rem;">
+                  <input type="checkbox" id="is_cisa_kev" checked style="width: 20px; height: 20px;">
+                  <span style="font-size: 0.85rem;">Actively Exploited in the Wild</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="asset_crit">Organizational Asset Criticality</label>
+                <select id="asset_crit">
+                  <option value="1.3">Tier 1: Core Database &amp; Payment Gateway (1.3x)</option>
+                  <option value="1.1" selected>Tier 2: Business SaaS Application (1.1x)</option>
+                  <option value="0.8">Tier 3: Internal Dev / Staging Environment (0.8x)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="asset_exp">Asset Network Exposure</label>
+                <select id="asset_exp">
+                  <option value="INTERNET_FACING" selected>Public Internet-Facing</option>
+                  <option value="INTERNAL_RESTRICTED">Internal Restricted / VPN</option>
+                  <option value="AIR_GAPPED">Air-Gapped Network</option>
+                </select>
+              </div>
+            </div>
+
+            <button type="submit" id="predictBtn" class="btn-primary">
+              <i class="bi bi-cpu-fill"></i> Compute Stage 1 ML &amp; Stage 2 Risk Score
+            </button>
+          </form>
+        </div>
+
+        <!-- Output Display -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><i class="bi bi-bullseye"></i> Model Prediction &amp; SHAP Decomposition</h2>
+          </div>
+
+          <div id="predictionResults" class="result-box" style="display: block;">
+            <div class="score-display">
+              <div>
+                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.2rem;">Composite Risk Score (0-100)</div>
+                <div class="score-num" id="riskScoreNum">96.8</div>
+              </div>
+              <div>
+                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.2rem;">Actionable SLA Tier</div>
+                <div class="priority-badge CRITICAL" id="riskTierBadge">CRITICAL_RISK</div>
+              </div>
+            </div>
+
+            <!-- Weighted Breakdown -->
+            <div style="margin-bottom: 1.2rem;">
+              <div class="component-item">
+                <span>Stage 1 ML Severity (CVSS Base - 30% Weight)</span>
+                <span id="mlSevVal">30.0 / 30</span>
+              </div>
+              <div class="bar-bg">
+                <div class="bar-fill" id="mlSevFill" style="width: 100%;"></div>
+              </div>
+
+              <div class="component-item" style="margin-top: 0.65rem;">
+                <span>CISA KEV Exploitation Flag (25% Weight)</span>
+                <span id="kevVal">25.0 / 25</span>
+              </div>
+              <div class="bar-bg">
+                <div class="bar-fill" id="kevFill" style="width: 100%;"></div>
+              </div>
+
+              <div class="component-item" style="margin-top: 0.65rem;">
+                <span>FIRST EPSS Exploit Probability (20% Weight)</span>
+                <span id="epssVal">19.4 / 20</span>
+              </div>
+              <div class="bar-bg">
+                <div class="bar-fill" id="epssFill" style="width: 97%;"></div>
+              </div>
+            </div>
+
+            <!-- SHAP Explainability Drivers -->
+            <div>
+              <div style="font-size: 0.85rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--primary);">
+                <i class="bi bi-lightbulb-fill"></i> Top SHAP Explanatory Feature Drivers:
+              </div>
+              <div id="shapList">
+                <div class="shap-item">
+                  <span><code>cisa_kev_active</code> (val: 1)</span>
+                  <span class="shap-val-pos">+0.42</span>
+                </div>
+                <div class="shap-item">
+                  <span><code>epss_probability</code> (val: 0.97)</span>
+                  <span class="shap-val-pos">+0.34</span>
+                </div>
+                <div class="shap-item">
+                  <span><code>attack_vector=NETWORK</code> (val: 1)</span>
+                  <span class="shap-val-pos">+0.28</span>
+                </div>
+                <div class="shap-item">
+                  <span><code>has_rce_keyword</code> (val: 1)</span>
+                  <span class="shap-val-pos">+0.24</span>
+                </div>
+                <div class="shap-item">
+                  <span><code>privileges_required=NONE</code> (val: 1)</span>
+                  <span class="shap-val-pos">+0.19</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page 4: Enterprise Asset Risk Manager -->
+    <div id="tab-assets" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title"><i class="bi bi-building-fill"></i> Enterprise Asset Vulnerability &amp; SLA Inventory</h2>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Asset ID</th>
+                <th>Asset Name &amp; Role</th>
+                <th>Criticality Tier</th>
+                <th>Network Exposure</th>
+                <th>Active Mapped CVEs</th>
+                <th>Max Risk Score</th>
+                <th>Patch SLA Window</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>AST-1001</code></td>
+                <td><strong>PROD-DB-PRIMARY (PostgreSQL Cluster)</strong></td>
+                <td><span class="priority-badge CRITICAL">Tier 1 (1.3x)</span></td>
+                <td><span class="tag-none"><i class="bi bi-shield-lock"></i> Internal Restricted</span></td>
+                <td>3 CVEs</td>
+                <td><strong style="color: var(--critical);">96.8 / 100</strong></td>
+                <td><span class="sla-urgent"><i class="bi bi-alarm-fill"></i> 24-72 Hours (CRITICAL)</span></td>
+              </tr>
+              <tr>
+                <td><code>AST-1002</code></td>
+                <td><strong>PAYMENT-GATEWAY-API (FastAPI Node)</strong></td>
+                <td><span class="priority-badge CRITICAL">Tier 1 (1.3x)</span></td>
+                <td><span class="tag-kev"><i class="bi bi-globe"></i> Internet Facing</span></td>
+                <td>5 CVEs</td>
+                <td><strong style="color: var(--high);">84.2 / 100</strong></td>
+                <td><span class="sla-urgent"><i class="bi bi-alarm-fill"></i> 72 Hours (HIGH)</span></td>
+              </tr>
+              <tr>
+                <td><code>AST-1003</code></td>
+                <td><strong>WEB-PORTAL-SAAS (React Frontend)</strong></td>
+                <td><span class="priority-badge HIGH">Tier 2 (1.1x)</span></td>
+                <td><span class="tag-kev"><i class="bi bi-globe"></i> Internet Facing</span></td>
+                <td>8 CVEs</td>
+                <td><strong style="color: var(--medium);">68.5 / 100</strong></td>
+                <td><span>7 Days (HIGH)</span></td>
+              </tr>
+              <tr>
+                <td><code>AST-1004</code></td>
+                <td><strong>DEV-STAGING-CLUSTER (Kubernetes Sandbox)</strong></td>
+                <td><span class="priority-badge LOW">Tier 3 (0.8x)</span></td>
+                <td><span class="tag-none"><i class="bi bi-ethernet"></i> Air-Gapped</span></td>
+                <td>12 CVEs</td>
+                <td><strong style="color: var(--low);">28.0 / 100</strong></td>
+                <td><span>30 Days (LOW)</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page 5: MLOps & Statistical Drift Monitor -->
+    <div id="tab-mlops" class="tab-pane">
+      <div class="dashboard-grid">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><i class="bi bi-graph-up-arrow"></i> Feature Population Stability Index (PSI Drift)</h2>
+          </div>
+          <div style="height: 280px;">
+            <canvas id="driftChart"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><i class="bi bi-trophy-fill"></i> Model Champion vs. Challenger Leaderboard</h2>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Model Version</th>
+                  <th>Status</th>
+                  <th>Macro F1</th>
+                  <th>Critical Recall</th>
+                  <th>ECE</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>v2.4 (XGBoost)</code></td>
+                  <td><span class="priority-badge LOW">CHAMPION</span></td>
+                  <td><strong>0.894</strong></td>
+                  <td>0.942</td>
+                  <td>0.041</td>
+                  <td><span style="color: var(--low);"><i class="bi bi-check-circle-fill"></i> Active in Prod</span></td>
+                </tr>
+                <tr>
+                  <td><code>v2.5 (Challenger)</code></td>
+                  <td><span class="priority-badge HIGH">CHALLENGER</span></td>
+                  <td><strong>0.908</strong></td>
+                  <td>0.955</td>
+                  <td>0.038</td>
+                  <td><button class="btn-primary" style="width: auto; padding: 0.35rem 0.75rem;"><i class="bi bi-rocket-takeoff-fill"></i> Promote</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.8rem; color: var(--text-secondary);"><i class="bi bi-clock-history"></i> Last Statistical Drift Check: Today at 06:00 UTC</span>
+            <button id="triggerDriftBtn" class="btn-primary" style="width: auto; padding: 0.45rem 1rem;"><i class="bi bi-arrow-repeat"></i> Run Statistical Drift Check</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page 6: System Architecture & Data Flow Blueprint -->
+    <div id="tab-architecture" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title"><i class="bi bi-diagram-3-fill"></i> End-to-End Enterprise System Architecture Blueprint</h2>
+        </div>
+        <div class="pipeline-flow">
+          <div class="pipe-node">
+            <i class="bi bi-cloud-arrow-down-fill"></i>
+            <strong>NVD, EPSS &amp; KEV</strong>
+            <div style="font-size: 0.75rem; color: var(--text-secondary);">Ingestion Microservice</div>
+          </div>
+          <div class="pipe-arrow"><i class="bi bi-arrow-right"></i></div>
+          <div class="pipe-node">
+            <i class="bi bi-database-fill"></i>
+            <strong>PostgreSQL 15+</strong>
+            <div style="font-size: 0.75rem; color: var(--text-secondary);">Append-Only DB</div>
+          </div>
+          <div class="pipe-arrow"><i class="bi bi-arrow-right"></i></div>
+          <div class="pipe-node">
+            <i class="bi bi-shield-check"></i>
+            <strong>Pandera Validator</strong>
+            <div style="font-size: 0.75rem; color: var(--text-secondary);">Data Quality Guard</div>
+          </div>
+          <div class="pipe-arrow"><i class="bi bi-arrow-right"></i></div>
+          <div class="pipe-node">
+            <i class="bi bi-cpu-fill"></i>
+            <strong>XGBoost + SHAP</strong>
+            <div style="font-size: 0.75rem; color: var(--text-secondary);">MLflow Tracker</div>
+          </div>
+          <div class="pipe-arrow"><i class="bi bi-arrow-right"></i></div>
+          <div class="pipe-node">
+            <i class="bi bi-lightning-charge-fill"></i>
+            <strong>FastAPI Serving</strong>
+            <div style="font-size: 0.75rem; color: var(--text-secondary);">REST API &amp; Risk Engine</div>
+          </div>
+          <div class="pipe-arrow"><i class="bi bi-arrow-right"></i></div>
+          <div class="pipe-node">
+            <i class="bi bi-arrow-repeat"></i>
+            <strong>Airflow Retrain DAG</strong>
+            <div style="font-size: 0.75rem; color: var(--text-secondary);">Drift &amp; Promotion Gate</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="js/dashboard.js"></script>
+</body>
+</html>

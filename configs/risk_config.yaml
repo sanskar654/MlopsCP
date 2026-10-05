@@ -1,0 +1,30 @@
+# Contextual Risk Prioritization Formula Weights
+weights:
+  predicted_severity: 0.35
+  exploitability_subscore: 0.25
+  cisa_kev_active: 0.25
+  epss_score: 0.15
+
+asset_criticality_multipliers:
+  tier_1_mission_critical: 1.30
+  tier_2_business_operational: 1.10
+  tier_3_internal_low: 0.80
+
+asset_exposure_multipliers:
+  internet_facing: 1.25
+  internal_network: 0.90
+  air_gapped: 0.60
+
+risk_tiers:
+  critical:
+    min_score: 80.0
+    sla_remediation_hours: 24
+  high:
+    min_score: 60.0
+    sla_remediation_hours: 72
+  medium:
+    min_score: 35.0
+    sla_remediation_hours: 336
+  low:
+    min_score: 0.0
+    sla_remediation_hours: 720

@@ -1,0 +1,25 @@
+# Drift Detection and Thresholds Configuration
+drift:
+  significance_level: 0.05
+  psi_threshold: 0.20
+  drift_share_threshold: 0.25
+  min_samples_for_evaluation: 50
+
+monitored_features:
+  numerical:
+    - "epss_score"
+    - "cvss_exploitability_score"
+    - "cvss_impact_score"
+    - "description_length"
+    - "token_count"
+  categorical:
+    - "attack_vector"
+    - "attack_complexity"
+    - "privileges_required"
+    - "user_interaction"
+    - "scope"
+
+alerting:
+  slack_enabled: true
+  email_enabled: true
+  min_severity_level: "WARNING"

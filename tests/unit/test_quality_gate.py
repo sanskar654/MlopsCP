@@ -10,13 +10,15 @@ from training.quality_gate import ModelQualityGate
 
 @pytest.fixture
 def quality_gate():
-    return ModelQualityGate(thresholds={
-        "min_macro_f1": 0.80,
-        "min_critical_recall": 0.85,
-        "max_ece": 0.10,
-        "max_latency_p99_ms": 50.0,
-        "champion_improvement_margin": 0.0,
-    })
+    return ModelQualityGate(
+        thresholds={
+            "min_macro_f1": 0.80,
+            "min_critical_recall": 0.85,
+            "max_ece": 0.10,
+            "max_latency_p99_ms": 50.0,
+            "champion_improvement_margin": 0.0,
+        }
+    )
 
 
 def test_quality_gate_pass(quality_gate):

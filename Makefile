@@ -33,7 +33,7 @@ test:
 
 lint:
 	black --check src tests scripts
-	flake8 src tests scripts --max-line-length=120 --ignore=E501,W503
+	flake8 src tests scripts --max-line-length=120 --ignore=E501,W503,E203
 
 up:
 	$(DOCKER_COMPOSE) up -d --build

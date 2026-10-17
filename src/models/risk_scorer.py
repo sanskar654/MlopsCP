@@ -19,7 +19,7 @@ Weights configurable via configs/risk_weights.yaml.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -42,7 +42,7 @@ RISK_TIERS = [
     (90, "CRITICAL_RISK"),
     (70, "HIGH_RISK"),
     (40, "MEDIUM_RISK"),
-    (0,  "LOW_RISK"),
+    (0, "LOW_RISK"),
 ]
 
 # CVSS severity to normalized score map
@@ -58,12 +58,13 @@ SEVERITY_TO_NORM = {
 @dataclass
 class RiskComponents:
     """All normalized components (0–1 each) for a single CVE."""
+
     cve_id: str
-    cvss_component: float = 0.0      # Severity score normalized
-    kev_component: float = 0.0       # 1.0 if in KEV, else 0.0
-    epss_component: float = 0.0      # Raw EPSS score (already 0–1)
-    asset_criticality: float = 0.5   # Org asset importance (0=unimportant, 1=critical)
-    exposure_score: float = 0.5      # Network exposure (0=air-gapped, 1=internet-facing)
+    cvss_component: float = 0.0  # Severity score normalized
+    kev_component: float = 0.0  # 1.0 if in KEV, else 0.0
+    epss_component: float = 0.0  # Raw EPSS score (already 0–1)
+    asset_criticality: float = 0.5  # Org asset importance (0=unimportant, 1=critical)
+    exposure_score: float = 0.5  # Network exposure (0=air-gapped, 1=internet-facing)
     confidence_component: float = 0.5  # Model confidence
     predicted_severity: int = -1
     predicted_severity_label: str = "UNKNOWN"
@@ -72,9 +73,10 @@ class RiskComponents:
 @dataclass
 class RiskResult:
     """Full risk scoring result for a CVE."""
+
     cve_id: str
-    risk_score: float           # 0–100
-    risk_tier: str              # LOW_RISK|MEDIUM_RISK|HIGH_RISK|CRITICAL_RISK
+    risk_score: float  # 0–100
+    risk_tier: str  # LOW_RISK|MEDIUM_RISK|HIGH_RISK|CRITICAL_RISK
     components: RiskComponents
     weights_used: dict[str, float]
     component_contributions: dict[str, float]  # Weighted contribution per component
@@ -105,9 +107,7 @@ class RiskScorer:
     def _validate_weights(self) -> None:
         total = sum(self.weights.values())
         if abs(total - 1.0) > 0.001:
-            logger.warning(
-                f"Risk weights sum to {total:.3f}, not 1.0. Normalizing."
-            )
+            logger.warning(f"Risk weights sum to {total:.3f}, not 1.0. Normalizing.")
             for k in self.weights:
                 self.weights[k] /= total
 
@@ -158,13 +158,10 @@ class RiskScorer:
             "model_confidence": components.confidence_component,
         }
 
-        contributions = {
-            k: self.weights[k] * component_values[k]
-            for k in self.weights
-        }
+        contributions = {k: self.weights[k] * component_values[k] for k in self.weights}
 
         raw_score = sum(contributions.values())  # 0–1
-        risk_score = round(raw_score * 100, 2)   # 0–100
+        risk_score = round(raw_score * 100, 2)  # 0–100
 
         # Determine tier
         risk_tier = "LOW_RISK"
@@ -210,10 +207,17 @@ class RiskScorer:
             model_confidence=0.95,
             in_cisa_kev=cisa_kev_active,
             epss_score=epss_score,
-            asset_criticality=min(1.0, asset_criticality / 5.0) if asset_criticality > 1.0 else asset_criticality,
-            exposure_score=min(1.0, asset_exposure / 5.0) if asset_exposure > 1.0 else asset_exposure,
+            asset_criticality=(
+                min(1.0, asset_criticality / 5.0)
+                if asset_criticality > 1.0
+                else asset_criticality
+            ),
+            exposure_score=(
+                min(1.0, asset_exposure / 5.0)
+                if asset_exposure > 1.0
+                else asset_exposure
+            ),
         )
-
 
     def score_batch(
         self,
@@ -272,9 +276,8 @@ class RiskScorer:
                 "asset_criticality": r.components.asset_criticality,
                 "exposure_score": r.components.exposure_score,
             }
-            row.update({
-                f"contribution_{k}": v
-                for k, v in r.component_contributions.items()
-            })
+            row.update(
+                {f"contribution_{k}": v for k, v in r.component_contributions.items()}
+            )
             rows.append(row)
         return pd.DataFrame(rows)

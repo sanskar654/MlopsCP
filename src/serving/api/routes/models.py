@@ -1,9 +1,11 @@
 """Model registry and comparison routes."""
+
 from __future__ import annotations
 from typing import Any, Dict
 from fastapi import APIRouter
 
 router = APIRouter()
+
 
 @router.get("/models")
 async def get_models() -> Dict[str, Any]:
@@ -16,7 +18,7 @@ async def get_models() -> Dict[str, Any]:
             "macro_f1": 0.894,
             "critical_recall": 0.941,
             "ece": 0.038,
-            "status": "Production"
+            "status": "Production",
         },
         "challenger": {
             "name": "vulnerability-severity-challenger",
@@ -25,9 +27,10 @@ async def get_models() -> Dict[str, Any]:
             "macro_f1": 0.902,
             "critical_recall": 0.948,
             "ece": 0.035,
-            "status": "Shadow Testing"
-        }
+            "status": "Shadow Testing",
+        },
     }
+
 
 @router.get("/models/compare")
 async def compare_models() -> Dict[str, Any]:
@@ -38,5 +41,5 @@ async def compare_models() -> Dict[str, Any]:
         "critical_recall_delta": "+0.007 (+0.74%)",
         "ece_delta": "-0.003",
         "quality_gate_passed": True,
-        "recommendation": "Ready for blue/green promotion"
+        "recommendation": "Ready for blue/green promotion",
     }

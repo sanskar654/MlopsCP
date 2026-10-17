@@ -12,8 +12,11 @@ wild within the next 30 days, providing a critical signal beyond CVSS severity.
 
 from __future__ import annotations
 
+import csv
+import gzip
+import io
 import logging
-from datetime import date, timedelta
+from datetime import date
 from typing import Any, Generator
 
 import requests
@@ -26,13 +29,11 @@ from tenacity import (
 
 logger = logging.getLogger(__name__)
 
-import csv
-import gzip
-import io
-
 EPSS_BASE_URL = "https://api.first.org/data/v1/epss"
 EPSS_BULK_CSV_URL = "https://epss.cyentia.com/epss_scores-current.csv.gz"
-EPSS_BULK_CSV_FALLBACK_URL = "https://epss.empiricalsecurity.com/epss_scores-current.csv.gz"
+EPSS_BULK_CSV_FALLBACK_URL = (
+    "https://epss.empiricalsecurity.com/epss_scores-current.csv.gz"
+)
 EPSS_PAGE_SIZE = 10000  # API max
 
 
@@ -53,10 +54,12 @@ class EPSSClient:
         self.timeout = timeout
 
         self.session = requests.Session()
-        self.session.headers.update({
-            "Accept": "application/json",
-            "User-Agent": "VulnMLOps/1.0 (syngenta-evaluation)",
-        })
+        self.session.headers.update(
+            {
+                "Accept": "application/json",
+                "User-Agent": "VulnMLOps/1.0 (syngenta-evaluation)",
+            }
+        )
 
     @retry(
         retry=retry_if_exception_type((requests.Timeout, requests.ConnectionError)),
@@ -92,7 +95,7 @@ class EPSSClient:
         batch_size = 100  # EPSS API handles comma-separated, max ~100 reliable
 
         for i in range(0, len(cve_ids), batch_size):
-            batch = cve_ids[i:i + batch_size]
+            batch = cve_ids[i : i + batch_size]  # noqa: E203
             params: dict[str, Any] = {
                 "cve": ",".join(batch),
                 "limit": batch_size,
@@ -253,14 +256,20 @@ class EPSSClient:
                 if not row or row[0].startswith("#") or row[0] == "cve":
                     continue
                 if len(row) >= 3:
-                    cve_id, epss_val, perc_val = row[0].strip(), row[1].strip(), row[2].strip()
+                    cve_id, epss_val, perc_val = (
+                        row[0].strip(),
+                        row[1].strip(),
+                        row[2].strip(),
+                    )
                     try:
-                        batch.append({
-                            "cve_id": cve_id,
-                            "score": float(epss_val),
-                            "percentile": float(perc_val),
-                            "snapshot_date": today_str,
-                        })
+                        batch.append(
+                            {
+                                "cve_id": cve_id,
+                                "score": float(epss_val),
+                                "percentile": float(perc_val),
+                                "snapshot_date": today_str,
+                            }
+                        )
                     except ValueError:
                         continue
 
@@ -270,4 +279,3 @@ class EPSSClient:
 
             if batch:
                 yield batch
-

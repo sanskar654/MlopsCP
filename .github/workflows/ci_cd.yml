@@ -33,7 +33,7 @@ jobs:
       - name: Strict Lint with Flake8 & Black (No || true)
         run: |
           black --check src tests
-          flake8 src tests --max-line-length=120 --ignore=E501,W503
+          flake8 src tests --max-line-length=120 --ignore=E501,W503,E203
 
       - name: Run Schema and Unit Tests
         run: |

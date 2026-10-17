@@ -20,11 +20,10 @@ Core Principles:
 from __future__ import annotations
 
 import logging
-import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 
 import joblib
 import numpy as np
@@ -83,39 +82,92 @@ KEYWORD_PATTERNS = {
 
 # ─── CWE Category Groupings ──────────────────────────────────────────────────
 MEMORY_SAFETY_CWES = {
-    "CWE-119", "CWE-120", "CWE-121", "CWE-122", "CWE-125",
-    "CWE-126", "CWE-127", "CWE-415", "CWE-416", "CWE-787",
-    "CWE-788", "CWE-824", "CWE-476",
+    "CWE-119",
+    "CWE-120",
+    "CWE-121",
+    "CWE-122",
+    "CWE-125",
+    "CWE-126",
+    "CWE-127",
+    "CWE-415",
+    "CWE-416",
+    "CWE-787",
+    "CWE-788",
+    "CWE-824",
+    "CWE-476",
 }
 
 INJECTION_CWES = {
-    "CWE-77", "CWE-78", "CWE-79", "CWE-89", "CWE-90",
-    "CWE-91", "CWE-94", "CWE-95", "CWE-96", "CWE-113",
-    "CWE-917", "CWE-943",
+    "CWE-77",
+    "CWE-78",
+    "CWE-79",
+    "CWE-89",
+    "CWE-90",
+    "CWE-91",
+    "CWE-94",
+    "CWE-95",
+    "CWE-96",
+    "CWE-113",
+    "CWE-917",
+    "CWE-943",
 }
 
 AUTH_CWES = {
-    "CWE-287", "CWE-288", "CWE-290", "CWE-294", "CWE-295",
-    "CWE-306", "CWE-307", "CWE-384", "CWE-522", "CWE-798",
+    "CWE-287",
+    "CWE-288",
+    "CWE-290",
+    "CWE-294",
+    "CWE-295",
+    "CWE-306",
+    "CWE-307",
+    "CWE-384",
+    "CWE-522",
+    "CWE-798",
 }
 
 CONFIG_CWES = {
-    "CWE-16", "CWE-183", "CWE-185", "CWE-200", "CWE-209",
-    "CWE-250", "CWE-276", "CWE-732", "CWE-749",
+    "CWE-16",
+    "CWE-183",
+    "CWE-185",
+    "CWE-200",
+    "CWE-209",
+    "CWE-250",
+    "CWE-276",
+    "CWE-732",
+    "CWE-749",
 }
 
 CRYPTO_CWES = {
-    "CWE-310", "CWE-311", "CWE-326", "CWE-327", "CWE-330", "CWE-338",
+    "CWE-310",
+    "CWE-311",
+    "CWE-326",
+    "CWE-327",
+    "CWE-330",
+    "CWE-338",
 }
 
 PRIVILEGE_CWES = {
-    "CWE-264", "CWE-269", "CWE-272", "CWE-274", "CWE-732",
+    "CWE-264",
+    "CWE-269",
+    "CWE-272",
+    "CWE-274",
+    "CWE-732",
 }
 
 # ─── Major Enterprise Vendors ────────────────────────────────────────────────
 TOP_VENDORS = [
-    "microsoft", "apple", "google", "cisco", "linux", "oracle",
-    "apache", "adobe", "ibm", "vmware", "redhat", "mozilla",
+    "microsoft",
+    "apple",
+    "google",
+    "cisco",
+    "linux",
+    "oracle",
+    "apache",
+    "adobe",
+    "ibm",
+    "vmware",
+    "redhat",
+    "mozilla",
 ]
 
 # ─── Pre-computed Non-Text Features ──────────────────────────────────────────
@@ -144,7 +196,10 @@ CWE_FEATURES = [
     "cwe_category_id",
 ]
 
-VENDOR_FEATURES = [f"vendor_{v}" for v in TOP_VENDORS] + ["vendor_other", "vendor_count"]
+VENDOR_FEATURES = [f"vendor_{v}" for v in TOP_VENDORS] + [
+    "vendor_other",
+    "vendor_count",
+]
 
 REFERENCE_FEATURES = [
     "reference_count",
@@ -205,7 +260,12 @@ class FeatureEngineer:
 
     def fit(self, df_raw: pd.DataFrame) -> "FeatureEngineer":
         """Fit the TF-IDF vectorizer on descriptions."""
-        texts = df_raw.get("description", pd.Series(dtype=str)).fillna("").astype(str).tolist()
+        texts = (
+            df_raw.get("description", pd.Series(dtype=str))
+            .fillna("")
+            .astype(str)
+            .tolist()
+        )
         self.vectorizer = TfidfVectorizer(
             max_features=TFIDF_MAX_FEATURES,
             ngram_range=(1, 2),
@@ -215,7 +275,9 @@ class FeatureEngineer:
         self.vectorizer.fit(texts)
         VECTORIZER_PATH.parent.mkdir(parents=True, exist_ok=True)
         joblib.dump(self.vectorizer, VECTORIZER_PATH)
-        logger.info("Fitted and saved TF-IDF vectorizer with %d features", TFIDF_MAX_FEATURES)
+        logger.info(
+            "Fitted and saved TF-IDF vectorizer with %d features", TFIDF_MAX_FEATURES
+        )
         return self
 
     def transform(
@@ -250,11 +312,17 @@ class FeatureEngineer:
             tfidf_mat = self.vectorizer.transform(descriptions).toarray()
             # If fitted vocabulary is smaller than max features, pad
             if tfidf_mat.shape[1] < TFIDF_MAX_FEATURES:
-                padding = np.zeros((tfidf_mat.shape[0], TFIDF_MAX_FEATURES - tfidf_mat.shape[1]))
+                padding = np.zeros(
+                    (tfidf_mat.shape[0], TFIDF_MAX_FEATURES - tfidf_mat.shape[1])
+                )
                 tfidf_mat = np.hstack([tfidf_mat, padding])
-            tfidf_df = pd.DataFrame(tfidf_mat[:, :TFIDF_MAX_FEATURES], columns=TFIDF_FEATURE_NAMES)
+            tfidf_df = pd.DataFrame(
+                tfidf_mat[:, :TFIDF_MAX_FEATURES], columns=TFIDF_FEATURE_NAMES
+            )
         else:
-            tfidf_df = pd.DataFrame(0.0, index=df_tabular.index, columns=TFIDF_FEATURE_NAMES)
+            tfidf_df = pd.DataFrame(
+                0.0, index=df_tabular.index, columns=TFIDF_FEATURE_NAMES
+            )
 
         df_features = pd.concat([df_tabular, tfidf_df], axis=1)
 
@@ -263,7 +331,11 @@ class FeatureEngineer:
             if col not in df_features.columns:
                 df_features[col] = 0
 
-        logger.info("Engineered %d features for %d records (Leakage-free v2.0)", len(ALL_FEATURES), len(df_features))
+        logger.info(
+            "Engineered %d features for %d records (Leakage-free v2.0)",
+            len(ALL_FEATURES),
+            len(df_features),
+        )
         return df_features
 
     def fit_transform(self, df_raw: pd.DataFrame, y=None) -> pd.DataFrame:
@@ -272,11 +344,21 @@ class FeatureEngineer:
         df = self.transform(df_raw)
         # Drop metadata and target columns to return pure X
         cols_to_drop = [
-            c for c in [
-                "cve_id", "severity_label", "severity_numeric", "base_severity",
-                "base_score", "cvss_score", "cvss_severity", "epss_score",
-                "epss_percentile", "in_cisa_kev", "feature_version"
-            ] if c in df.columns
+            c
+            for c in [
+                "cve_id",
+                "severity_label",
+                "severity_numeric",
+                "base_severity",
+                "base_score",
+                "cvss_score",
+                "cvss_severity",
+                "epss_score",
+                "epss_percentile",
+                "in_cisa_kev",
+                "feature_version",
+            ]
+            if c in df.columns
         ]
         return df.drop(columns=cols_to_drop)
 
@@ -284,12 +366,17 @@ class FeatureEngineer:
         """Alias for transform."""
         return self.transform(df_raw)
 
-    def _engineer_tabular_features(self, row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _engineer_tabular_features(
+        self, row: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         cve_id = row.get("cve_id") or ""
         if not cve_id:
             return None
 
-        features: Dict[str, Any] = {"cve_id": cve_id, "feature_version": FEATURE_VERSION}
+        features: Dict[str, Any] = {
+            "cve_id": cve_id,
+            "feature_version": FEATURE_VERSION,
+        }
 
         # ─── Text / NLP Metrics ──────────────────────────────────────────────
         desc = str(row.get("description") or "")
@@ -327,10 +414,13 @@ class FeatureEngineer:
 
         # ─── Vendor / Product Recognition ────────────────────────────────────
         vendor_text = (
-            str(row.get("vendor") or "") + " " +
-            str(row.get("product") or "") + " " +
-            str(row.get("cpe_list") or "") + " " +
-            desc
+            str(row.get("vendor") or "")
+            + " "
+            + str(row.get("product") or "")
+            + " "
+            + str(row.get("cpe_list") or "")
+            + " "
+            + desc
         ).lower()
 
         matched_any_vendor = False
@@ -341,7 +431,9 @@ class FeatureEngineer:
                 matched_any_vendor = True
 
         features["vendor_other"] = 0 if matched_any_vendor else 1
-        features["vendor_count"] = int(row.get("vendor_count") or (1 if matched_any_vendor else 0))
+        features["vendor_count"] = int(
+            row.get("vendor_count") or (1 if matched_any_vendor else 0)
+        )
 
         # ─── Reference Features ──────────────────────────────────────────────
         ref_urls = row.get("reference_urls") or []
@@ -350,14 +442,27 @@ class FeatureEngineer:
         ref_text = " ".join([str(u).lower() for u in ref_urls])
 
         features["reference_count"] = int(row.get("reference_count") or len(ref_urls))
-        features["has_patch_reference"] = int(any(k in ref_text for k in ["patch", "advisory", "commit", "update", "fix", "security"]))
-        features["has_exploit_reference"] = int(any(k in ref_text for k in ["exploit", "poc", "metasploit", "exploit-db", "packetstorm"]))
+        features["has_patch_reference"] = int(
+            any(
+                k in ref_text
+                for k in ["patch", "advisory", "commit", "update", "fix", "security"]
+            )
+        )
+        features["has_exploit_reference"] = int(
+            any(
+                k in ref_text
+                for k in ["exploit", "poc", "metasploit", "exploit-db", "packetstorm"]
+            )
+        )
 
         # ─── Temporal Features ───────────────────────────────────────────────
         published = self._parse_dt(row.get("published_date"))
         if published:
-            delta = self.reference_date - published.replace(tzinfo=timezone.utc) \
-                if published.tzinfo is None else self.reference_date - published
+            delta = (
+                self.reference_date - published.replace(tzinfo=timezone.utc)
+                if published.tzinfo is None
+                else self.reference_date - published
+            )
             features["days_since_published"] = max(0, delta.days)
             features["quarter_published"] = (published.month - 1) // 3 + 1
             features["year_published"] = published.year
@@ -369,7 +474,11 @@ class FeatureEngineer:
             features["is_recent"] = 0
 
         # ─── Target Severity Label ───────────────────────────────────────────
-        raw_sev = str(row.get("base_severity") or row.get("cvss_severity") or "").upper().strip()
+        raw_sev = (
+            str(row.get("base_severity") or row.get("cvss_severity") or "")
+            .upper()
+            .strip()
+        )
         if not raw_sev and row.get("base_score") is not None:
             try:
                 score = float(row["base_score"])

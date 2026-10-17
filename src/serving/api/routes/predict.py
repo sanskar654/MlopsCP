@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any, Dict
 
 import numpy as np
 import pandas as pd
@@ -73,18 +72,30 @@ async def predict_severity(req: PredictRequest, request: Request):
         else:
             # Heuristic symptom-based fallback for cold start / offline demo
             desc_lower = (req.description or "").lower()
-            if any(k in desc_lower for k in ["remote code", "rce", "arbitrary code", "buffer overflow"]):
+            if any(
+                k in desc_lower
+                for k in ["remote code", "rce", "arbitrary code", "buffer overflow"]
+            ):
                 proba = np.array([[0.02, 0.08, 0.25, 0.65]])
-            elif any(k in desc_lower for k in ["sql inject", "privilege escal", "unauthenticated"]):
+            elif any(
+                k in desc_lower
+                for k in ["sql inject", "privilege escal", "unauthenticated"]
+            ):
                 proba = np.array([[0.05, 0.15, 0.65, 0.15]])
-            elif any(k in desc_lower for k in ["cross-site script", "xss", "traversal"]):
+            elif any(
+                k in desc_lower for k in ["cross-site script", "xss", "traversal"]
+            ):
                 proba = np.array([[0.10, 0.65, 0.20, 0.05]])
             else:
                 proba = np.array([[0.40, 0.40, 0.15, 0.05]])
 
         pred_class = int(np.argmax(proba[0]))
         num_classes = proba.shape[1]
-        labels = SEVERITY_LABELS if num_classes == 4 else ["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+        labels = (
+            SEVERITY_LABELS
+            if num_classes == 4
+            else ["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+        )
         pred_label = labels[pred_class] if pred_class < len(labels) else "HIGH"
         confidence = float(proba[0][pred_class])
 

@@ -12,7 +12,6 @@ headers to avoid unnecessary full downloads.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 from pathlib import Path
@@ -28,9 +27,7 @@ from tenacity import (
 
 logger = logging.getLogger(__name__)
 
-CISA_KEV_URL = (
-    "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
-)
+CISA_KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 ETAG_CACHE_FILE = Path("/tmp/cisa_kev_etag.txt")
 
 
@@ -53,10 +50,12 @@ class CISAKEVClient:
         self.url = url
         self.timeout = timeout
         self.session = requests.Session()
-        self.session.headers.update({
-            "Accept": "application/json",
-            "User-Agent": "VulnMLOps/1.0 (syngenta-evaluation)",
-        })
+        self.session.headers.update(
+            {
+                "Accept": "application/json",
+                "User-Agent": "VulnMLOps/1.0 (syngenta-evaluation)",
+            }
+        )
 
     @retry(
         retry=retry_if_exception_type((requests.Timeout, requests.ConnectionError)),
@@ -137,24 +136,27 @@ class CISAKEVClient:
         entries, _ = self.fetch(cache_path=cache_path, force_refresh=force_refresh)
         return entries
 
-
     def _parse_entries(self, data: dict[str, Any]) -> list[dict[str, Any]]:
         """Parse KEV JSON into normalized flat dicts."""
         raw_vulns = data.get("vulnerabilities", [])
         parsed = []
         for v in raw_vulns:
-            parsed.append({
-                "cve_id": v.get("cveID", ""),
-                "vendor_project": v.get("vendorProject", ""),
-                "product": v.get("product", ""),
-                "vulnerability_name": v.get("vulnerabilityName", ""),
-                "date_added": v.get("dateAdded", ""),
-                "short_description": v.get("shortDescription", ""),
-                "required_action": v.get("requiredAction", ""),
-                "due_date": v.get("dueDate", ""),
-                "known_ransomware_campaign_use": v.get("knownRansomwareCampaignUse", "Unknown"),
-                "notes": v.get("notes", ""),
-            })
+            parsed.append(
+                {
+                    "cve_id": v.get("cveID", ""),
+                    "vendor_project": v.get("vendorProject", ""),
+                    "product": v.get("product", ""),
+                    "vulnerability_name": v.get("vulnerabilityName", ""),
+                    "date_added": v.get("dateAdded", ""),
+                    "short_description": v.get("shortDescription", ""),
+                    "required_action": v.get("requiredAction", ""),
+                    "due_date": v.get("dueDate", ""),
+                    "known_ransomware_campaign_use": v.get(
+                        "knownRansomwareCampaignUse", "Unknown"
+                    ),
+                    "notes": v.get("notes", ""),
+                }
+            )
         return parsed
 
     def _load_cached_etag(self) -> str | None:

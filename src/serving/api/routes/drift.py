@@ -1,10 +1,12 @@
 """Drift monitoring route."""
+
 from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Dict
 from fastapi import APIRouter
 
 router = APIRouter()
+
 
 @router.get("/drift")
 async def get_drift_status() -> Dict[str, Any]:
@@ -23,6 +25,6 @@ async def get_drift_status() -> Dict[str, Any]:
             "description_length": {"psi": 0.09, "drift": False},
             "privileges_required": {"psi": 0.03, "drift": False},
             "cvss_exploitability_score": {"psi": 0.11, "drift": False},
-            "confidentiality_impact": {"psi": 0.05, "drift": False}
-        }
+            "confidentiality_impact": {"psi": 0.05, "drift": False},
+        },
     }

@@ -17,6 +17,8 @@ import logging
 import re
 from typing import Any
 
+import pandas as pd
+
 logger = logging.getLogger(__name__)
 CVE_ID_PATTERN = re.compile(r"^CVE-\d{4}-\d{4,}$")
 
@@ -24,6 +26,7 @@ try:
     import pandera as pa
 
     from pandera import Column, DataFrameSchema, Check
+
     HAS_PANDERA = True
 except ImportError:
     HAS_PANDERA = False
@@ -37,8 +40,10 @@ if HAS_PANDERA:
         columns={
             "cve_id": Column(
                 str,
-                Check(lambda x: x.str.match(r"^CVE-\d{4}-\d{4,}$").all(),
-                      error="CVE ID format invalid"),
+                Check(
+                    lambda x: x.str.match(r"^CVE-\d{4}-\d{4,}$").all(),
+                    error="CVE ID format invalid",
+                ),
                 nullable=False,
             ),
             "published_date": Column(
@@ -52,17 +57,19 @@ if HAS_PANDERA:
             "base_severity": Column(
                 str,
                 Check(
-                    lambda x: x.dropna().isin(
-                        ["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL", ""]
-                    ).all(),
+                    lambda x: x.dropna()
+                    .isin(["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL", ""])
+                    .all(),
                     error="Invalid severity label",
                 ),
                 nullable=True,
             ),
             "base_score": Column(
                 float,
-                Check(lambda x: (x.dropna() >= 0.0).all() & (x.dropna() <= 10.0).all(),
-                      error="CVSS base score out of range [0, 10]"),
+                Check(
+                    lambda x: (x.dropna() >= 0.0).all() & (x.dropna() <= 10.0).all(),
+                    error="CVSS base score out of range [0, 10]",
+                ),
                 nullable=True,
             ),
         },
@@ -75,26 +82,34 @@ if HAS_PANDERA:
             "cve_id": Column(str, nullable=False),
             "severity_numeric": Column(
                 int,
-                Check(lambda x: x.dropna().isin([-1, 0, 1, 2, 3, 4]).all(),
-                      error="severity_numeric must be -1 to 4"),
+                Check(
+                    lambda x: x.dropna().isin([-1, 0, 1, 2, 3, 4]).all(),
+                    error="severity_numeric must be -1 to 4",
+                ),
                 nullable=True,
             ),
             "epss_score": Column(
                 float,
-                Check(lambda x: (x >= 0.0).all() & (x <= 1.0).all(),
-                      error="EPSS score out of range [0, 1]"),
+                Check(
+                    lambda x: (x >= 0.0).all() & (x <= 1.0).all(),
+                    error="EPSS score out of range [0, 1]",
+                ),
                 nullable=False,
             ),
             "epss_percentile": Column(
                 float,
-                Check(lambda x: (x >= 0.0).all() & (x <= 1.0).all(),
-                      error="EPSS percentile out of range [0, 1]"),
+                Check(
+                    lambda x: (x >= 0.0).all() & (x <= 1.0).all(),
+                    error="EPSS percentile out of range [0, 1]",
+                ),
                 nullable=False,
             ),
             "days_since_published": Column(
                 float,
-                Check(lambda x: (x.dropna() >= 0).all(),
-                      error="days_since_published cannot be negative"),
+                Check(
+                    lambda x: (x.dropna() >= 0).all(),
+                    error="days_since_published cannot be negative",
+                ),
                 nullable=True,
             ),
             "description_length": Column(int, nullable=False),
@@ -107,7 +122,6 @@ else:
     ENGINEERED_FEATURE_SCHEMA = None
 
 
-
 class DataValidator:
     """
     Validates DataFrames at different pipeline stages.
@@ -115,9 +129,7 @@ class DataValidator:
     Produces a structured validation report for monitoring.
     """
 
-    def validate_raw(
-        self, df: pd.DataFrame
-    ) -> tuple[pd.DataFrame, dict[str, Any]]:
+    def validate_raw(self, df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
         """
         Validate raw NVD data.
 
@@ -156,7 +168,6 @@ class DataValidator:
                 report["errors"].append(str(e.failure_cases.head(10).to_dict()))
                 report["passed"] = False
 
-
         # Statistics
         report["statistics"] = {
             "total_records": len(df),
@@ -164,12 +175,16 @@ class DataValidator:
             "with_description": int(df["description"].notna().sum()),
             "severity_distribution": (
                 df["base_severity"].value_counts().to_dict()
-                if "base_severity" in df.columns else {}
+                if "base_severity" in df.columns
+                else {}
             ),
             "year_range": (
-                [int(df["published_date"].min()[:4]),
-                 int(df["published_date"].max()[:4])]
-                if "published_date" in df.columns and len(df) > 0 else [None, None]
+                [
+                    int(df["published_date"].min()[:4]),
+                    int(df["published_date"].max()[:4]),
+                ]
+                if "published_date" in df.columns and len(df) > 0
+                else [None, None]
             ),
         }
 
@@ -218,21 +233,22 @@ class DataValidator:
                 report["errors"].append(str(e.failure_cases.head(10).to_dict()))
                 report["passed"] = False
 
-
         report["statistics"] = {
             "total_features": len(df.columns),
             "total_records": len(df),
-            "missing_severity": int((df.get("severity_numeric", pd.Series()) == -1).sum()),
-            "in_kev_count": int(df["in_cisa_kev"].sum()) if "in_cisa_kev" in df.columns else 0,
-            "high_epss_count": int(
-                (df["epss_score"] > 0.1).sum()
-            ) if "epss_score" in df.columns else 0,
+            "missing_severity": int(
+                (df.get("severity_numeric", pd.Series()) == -1).sum()
+            ),
+            "in_kev_count": (
+                int(df["in_cisa_kev"].sum()) if "in_cisa_kev" in df.columns else 0
+            ),
+            "high_epss_count": (
+                int((df["epss_score"] > 0.1).sum()) if "epss_score" in df.columns else 0
+            ),
         }
 
         report["output_rows"] = len(df)
-        logger.info(
-            f"Feature validation: {len(df)} records, passed={report['passed']}"
-        )
+        logger.info(f"Feature validation: {len(df)} records, passed={report['passed']}")
         return df, report
 
     def check_leakage(self, df: pd.DataFrame, feature_cols: list[str]) -> list[str]:
@@ -242,9 +258,12 @@ class DataValidator:
         Returns list of detected leakage columns.
         """
         FORBIDDEN_FEATURES = {
-            "base_score", "base_severity",
-            "exploitability_score", "impact_score",
-            "cvss_v2_score", "cvss_v2_severity",
+            "base_score",
+            "base_severity",
+            "exploitability_score",
+            "impact_score",
+            "cvss_v2_score",
+            "cvss_v2_severity",
             "severity_label",  # target label
         }
         leakage = [c for c in feature_cols if c.lower() in FORBIDDEN_FEATURES]
@@ -256,7 +275,9 @@ class DataValidator:
 class VulnerabilitySchemaValidator(DataValidator):
     """Alias for DataValidator for compatibility across pipeline modules and DAGs."""
 
-    def validate(self, df: pd.DataFrame, bad_row_threshold: float = 0.05) -> pd.DataFrame:
+    def validate(
+        self, df: pd.DataFrame, bad_row_threshold: float = 0.05
+    ) -> pd.DataFrame:
         """Convenience method to validate raw data and raise on threshold error."""
         cleaned_df, report = self.validate_raw(df)
         total = report["input_rows"]
@@ -267,4 +288,3 @@ class VulnerabilitySchemaValidator(DataValidator):
                 f"exceeding bad-row threshold of {bad_row_threshold:.1%}. Errors: {report['errors']}"
             )
         return cleaned_df
-

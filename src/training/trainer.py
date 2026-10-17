@@ -20,13 +20,14 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 try:
     import mlflow
     import mlflow.sklearn
     from mlflow.models import infer_signature
     from mlflow.tracking import MlflowClient
+
     HAS_MLFLOW = True
 except ImportError:
     HAS_MLFLOW = False
@@ -34,7 +35,6 @@ except ImportError:
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.utils.class_weight import compute_sample_weight
 
 from src.features.feature_engineer import ALL_FEATURES, TARGET_COLUMN
@@ -59,7 +59,11 @@ class VulnerabilityTrainer:
         model_config: Optional[Dict[str, Any]] = None,
         quality_gate_config: Optional[Dict[str, Any]] = None,
     ):
-        uri = tracking_uri or mlflow_tracking_uri or os.getenv("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db")
+        uri = (
+            tracking_uri
+            or mlflow_tracking_uri
+            or os.getenv("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db")
+        )
         self.mlflow_tracking_uri = uri
         self.experiment_name = experiment_name
         self.model_config = model_config or {}
@@ -69,7 +73,9 @@ class VulnerabilityTrainer:
             try:
                 mlflow.set_tracking_uri(self.mlflow_tracking_uri)
                 mlflow.set_experiment(experiment_name)
-                logger.info(f"MLflow tracking initialized at {self.mlflow_tracking_uri}")
+                logger.info(
+                    f"MLflow tracking initialized at {self.mlflow_tracking_uri}"
+                )
             except Exception as e:
                 logger.warning(f"MLflow setup warning: {e}")
 
@@ -85,18 +91,24 @@ class VulnerabilityTrainer:
 
         def _log_param(k, v):
             if HAS_MLFLOW:
-                try: mlflow.log_param(k, v)
-                except Exception: pass
+                try:
+                    mlflow.log_param(k, v)
+                except Exception:
+                    pass
 
         def _log_params(d):
             if HAS_MLFLOW:
-                try: mlflow.log_params(d)
-                except Exception: pass
+                try:
+                    mlflow.log_params(d)
+                except Exception:
+                    pass
 
         def _log_metric(k, v):
             if HAS_MLFLOW:
-                try: mlflow.log_metric(k, v)
-                except Exception: pass
+                try:
+                    mlflow.log_metric(k, v)
+                except Exception:
+                    pass
 
         if HAS_MLFLOW:
             try:
@@ -108,21 +120,22 @@ class VulnerabilityTrainer:
         logger.info(f"Training run ID: {run_id}")
 
         # ── Log configuration ─────────────────────────────────────────
-        _log_params({
-            "data_version": data_version,
-            "n_samples": len(df_features),
-            "n_features": len(ALL_FEATURES),
-            "model_type": "XGBoost+IsotonicCalibration",
-            "imbalance_strategy": "Class_Weights_Cost_Sensitive",
-            "cv_strategy": "temporal_split",
-            "feature_version": "2.0-leakage-free",
-        })
+        _log_params(
+            {
+                "data_version": data_version,
+                "n_samples": len(df_features),
+                "n_features": len(ALL_FEATURES),
+                "model_type": "XGBoost+IsotonicCalibration",
+                "imbalance_strategy": "Class_Weights_Cost_Sensitive",
+                "cv_strategy": "temporal_split",
+                "feature_version": "2.0-leakage-free",
+            }
+        )
 
         # ── Data preparation ──────────────────────────────────────────
         logger.info("Preparing training data...")
         df_labeled = df_features[
-            df_features[TARGET_COLUMN].notna()
-            & (df_features[TARGET_COLUMN] >= 0)
+            df_features[TARGET_COLUMN].notna() & (df_features[TARGET_COLUMN] >= 0)
         ].copy()
 
         logger.info(f"Labeled samples: {len(df_labeled)} / {len(df_features)} total")
@@ -145,11 +158,13 @@ class VulnerabilityTrainer:
         X_test = test_df[cols_to_use].fillna(0)
         y_test = test_df[TARGET_COLUMN].astype(int)
 
-        _log_params({
-            "train_size": len(X_train),
-            "val_size": len(X_val),
-            "test_size": len(X_test),
-        })
+        _log_params(
+            {
+                "train_size": len(X_train),
+                "val_size": len(X_val),
+                "test_size": len(X_test),
+            }
+        )
 
         # ── Class Balancing via Cost-Sensitive Weights (No SMOTE on text) ────
         logger.info("Applying balanced class sample weights to loss function...")
@@ -178,7 +193,7 @@ class VulnerabilityTrainer:
 
         # Compute error analysis: examine confusion pairs and reasons
         y_test_pred = classifier.predict(X_test)
-        error_mask = (y_test.values != y_test_pred)
+        error_mask = y_test.values != y_test_pred
         n_errors = int(np.sum(error_mask))
         error_rate = float(n_errors / max(len(y_test), 1))
         _log_metric("error_rate", error_rate)
@@ -200,15 +215,19 @@ class VulnerabilityTrainer:
             explainer = SHAPExplainer(classifier)
             bg_sample = X_train.sample(min(150, len(X_train)), random_state=42)
             explainer.initialize(bg_sample)
-            global_importance = explainer.global_feature_importance(X_test, n_samples=80)
+            global_importance = explainer.global_feature_importance(
+                X_test, n_samples=80
+            )
 
             importance_df = pd.DataFrame(global_importance)
             importance_path = "data/monitoring/feature_importance.csv"
             Path(importance_path).parent.mkdir(parents=True, exist_ok=True)
             importance_df.to_csv(importance_path, index=False)
             if HAS_MLFLOW:
-                try: mlflow.log_artifact(importance_path, "explainability")
-                except Exception: pass
+                try:
+                    mlflow.log_artifact(importance_path, "explainability")
+                except Exception:
+                    pass
         except Exception as e:
             logger.warning(f"SHAP importance computation skipped/failed: {e}")
 
@@ -220,7 +239,7 @@ class VulnerabilityTrainer:
                 pred_example = classifier.predict_proba(input_example)
                 signature = infer_signature(input_example, pred_example)
 
-                model_info = mlflow.sklearn.log_model(
+                mlflow.sklearn.log_model(
                     sk_model=classifier.calibrated_model,
                     artifact_path="model",
                     registered_model_name=model_name,
@@ -235,8 +254,12 @@ class VulnerabilityTrainer:
                     latest_versions = client.get_latest_versions(model_name)
                     if latest_versions:
                         target_v = latest_versions[0].version
-                        client.set_registered_model_alias(model_name, assigned_alias, target_v)
-                        logger.info(f"Registered model alias @{assigned_alias} assigned to version {target_v}")
+                        client.set_registered_model_alias(
+                            model_name, assigned_alias, target_v
+                        )
+                        logger.info(
+                            f"Registered model alias @{assigned_alias} assigned to version {target_v}"
+                        )
                 except Exception as e_alias:
                     logger.warning(f"Could not assign model alias: {e_alias}")
 
@@ -249,13 +272,19 @@ class VulnerabilityTrainer:
         _log_param("quality_gate_passed", gate_result["passed"])
 
         if HAS_MLFLOW:
-            try: mlflow.end_run()
-            except Exception: pass
+            try:
+                mlflow.end_run()
+            except Exception:
+                pass
 
         if gate_result["passed"]:
-            logger.info("Quality gate PASSED - Model eligible for production champion alias")
+            logger.info(
+                "Quality gate PASSED - Model eligible for production champion alias"
+            )
         else:
-            logger.warning(f"Quality gate warnings/failures: {gate_result.get('failures', [])}")
+            logger.warning(
+                f"Quality gate warnings/failures: {gate_result.get('failures', [])}"
+            )
 
         metrics["quality_gate"] = gate_result
         metrics["run_id"] = run_id
@@ -281,7 +310,9 @@ class VulnerabilityTrainer:
         else:
             df = pd.read_csv(data_path)
 
-        run_id, metrics = self.train(df_features=df, model_name=model_name, challenger=False)
+        run_id, metrics = self.train(
+            df_features=df, model_name=model_name, challenger=False
+        )
         return run_id, metrics, None
 
     def _measure_latency(

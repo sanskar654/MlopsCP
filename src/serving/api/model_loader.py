@@ -9,7 +9,6 @@ Provides thread-safe access for concurrent FastAPI worker requests.
 from __future__ import annotations
 
 import logging
-import os
 import threading
 from typing import Any, Optional
 
@@ -17,6 +16,7 @@ try:
     import mlflow
     import mlflow.sklearn
     from mlflow.tracking import MlflowClient
+
     HAS_MLFLOW = True
 except ImportError:
     mlflow = None
@@ -58,9 +58,13 @@ class ModelRegistry:
                 client = MlflowClient()
                 mv = client.get_model_version_by_alias(model_name, alias)
                 self._champion_version = mv.version if mv else "champion"
-                logger.info(f"Champion loaded: {model_name} (version {self._champion_version}, alias @{alias})")
+                logger.info(
+                    f"Champion loaded: {model_name} (version {self._champion_version}, alias @{alias})"
+                )
             except Exception as e_alias:
-                logger.warning(f"Could not load champion via @{alias} ({e_alias}). Trying latest fallback...")
+                logger.warning(
+                    f"Could not load champion via @{alias} ({e_alias}). Trying latest fallback..."
+                )
                 try:
                     # 2. Fallback: load latest registered version
                     client = MlflowClient()
@@ -73,15 +77,23 @@ class ModelRegistry:
                         self._champion_version = latest_v
                         # Assign champion alias automatically
                         try:
-                            client.set_registered_model_alias(model_name, alias, latest_v)
-                            logger.info(f"Assigned alias @{alias} to version {latest_v}")
+                            client.set_registered_model_alias(
+                                model_name, alias, latest_v
+                            )
+                            logger.info(
+                                f"Assigned alias @{alias} to version {latest_v}"
+                            )
                         except Exception:
                             pass
-                        logger.info(f"Champion loaded (fallback version {latest_v}): {model_name}")
+                        logger.info(
+                            f"Champion loaded (fallback version {latest_v}): {model_name}"
+                        )
                     else:
                         raise RuntimeError(f"No versions found for model {model_name}")
                 except Exception as e_fallback:
-                    logger.warning(f"Could not load champion model: {e_fallback}. Running in fallback heuristic mode.")
+                    logger.warning(
+                        f"Could not load champion model: {e_fallback}. Running in fallback heuristic mode."
+                    )
 
     def load_challenger(self, model_name: str, alias: str = "challenger") -> None:
         """
@@ -99,7 +111,9 @@ class ModelRegistry:
                 client = MlflowClient()
                 mv = client.get_model_version_by_alias(model_name, alias)
                 self._challenger_version = mv.version if mv else "challenger"
-                logger.info(f"Challenger loaded: {model_name} (version {self._challenger_version}, alias @{alias})")
+                logger.info(
+                    f"Challenger loaded: {model_name} (version {self._challenger_version}, alias @{alias})"
+                )
             except Exception as e:
                 logger.debug(f"Challenger model not loaded: {e}")
 

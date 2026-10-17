@@ -1,4 +1,5 @@
 """Risk scoring route."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -56,7 +57,11 @@ async def compute_risk_score(req: RiskScoreRequest, request: Request):
 
         pred_class = int(np.argmax(proba[0]))
         num_classes = proba.shape[1]
-        labels = SEVERITY_LABELS if num_classes == 4 else ["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+        labels = (
+            SEVERITY_LABELS
+            if num_classes == 4
+            else ["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+        )
         pred_label = labels[pred_class] if pred_class < len(labels) else "HIGH"
         confidence = float(proba[0][pred_class])
 

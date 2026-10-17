@@ -6,13 +6,13 @@ Request and response models for all API endpoints.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 # ─── Prediction ──────────────────────────────────────────────────────────────
+
 
 class PredictRequest(BaseModel):
     cve_id: str = Field(..., description="CVE identifier", example="CVE-2021-44228")
@@ -24,7 +24,9 @@ class PredictRequest(BaseModel):
     description: Optional[str] = Field(
         None, description="CVE description text for NLP features"
     )
-    epss_score: float = Field(0.0, ge=0.0, le=1.0, description="EPSS exploitation probability")
+    epss_score: float = Field(
+        0.0, ge=0.0, le=1.0, description="EPSS exploitation probability"
+    )
     epss_percentile: float = Field(0.0, ge=0.0, le=1.0)
     in_cisa_kev: bool = Field(False, description="Is this CVE in CISA KEV catalog")
     year_published: Optional[int] = Field(None, ge=1999, le=2030)
@@ -45,6 +47,7 @@ class PredictResponse(BaseModel):
 
 # ─── Risk Scoring ─────────────────────────────────────────────────────────────
 
+
 class RiskScoreRequest(BaseModel):
     cve_id: str
     cvss_vector_string: Optional[str] = None
@@ -57,12 +60,16 @@ class RiskScoreRequest(BaseModel):
     reference_count: int = 0
     vendor_count: int = 0
     asset_criticality: float = Field(
-        0.5, ge=0.0, le=1.0,
-        description="Organizational asset importance (0=low, 1=critical)"
+        0.5,
+        ge=0.0,
+        le=1.0,
+        description="Organizational asset importance (0=low, 1=critical)",
     )
     exposure_score: float = Field(
-        0.5, ge=0.0, le=1.0,
-        description="Network exposure (0=air-gapped, 1=internet-facing)"
+        0.5,
+        ge=0.0,
+        le=1.0,
+        description="Network exposure (0=air-gapped, 1=internet-facing)",
     )
 
 
@@ -78,7 +85,9 @@ class RiskComponentsResponse(BaseModel):
 class RiskScoreResponse(BaseModel):
     cve_id: str
     risk_score: float = Field(..., description="Composite risk score 0–100")
-    risk_tier: str = Field(..., description="LOW_RISK|MEDIUM_RISK|HIGH_RISK|CRITICAL_RISK")
+    risk_tier: str = Field(
+        ..., description="LOW_RISK|MEDIUM_RISK|HIGH_RISK|CRITICAL_RISK"
+    )
     predicted_severity: str
     model_confidence: float
     components: RiskComponentsResponse
@@ -88,6 +97,7 @@ class RiskScoreResponse(BaseModel):
 
 
 # ─── Explanation ──────────────────────────────────────────────────────────────
+
 
 class ExplainRequest(BaseModel):
     cve_id: str
@@ -122,6 +132,7 @@ class ExplainResponse(BaseModel):
 
 
 # ─── Vulnerability List ───────────────────────────────────────────────────────
+
 
 class VulnerabilityListItem(BaseModel):
     cve_id: str
@@ -175,6 +186,7 @@ class VulnerabilityDetailResponse(BaseModel):
 
 # ─── Feedback ────────────────────────────────────────────────────────────────
 
+
 class FeedbackRequest(BaseModel):
     cve_id: str
     analyst_id: str = Field(..., description="Analyst identifier")
@@ -186,8 +198,7 @@ class FeedbackRequest(BaseModel):
     )
     feedback_notes: Optional[str] = None
     confidence_rating: int = Field(
-        3, ge=1, le=5,
-        description="Analyst confidence in correction (1=low, 5=high)"
+        3, ge=1, le=5, description="Analyst confidence in correction (1=low, 5=high)"
     )
 
 
@@ -199,6 +210,7 @@ class FeedbackResponse(BaseModel):
 
 
 # ─── Model Registry ───────────────────────────────────────────────────────────
+
 
 class ModelInfo(BaseModel):
     model_name: str
@@ -223,6 +235,7 @@ class ModelCompareResponse(BaseModel):
 
 # ─── Drift ────────────────────────────────────────────────────────────────────
 
+
 class DriftReportResponse(BaseModel):
     report_date: str
     report_type: str
@@ -236,6 +249,7 @@ class DriftReportResponse(BaseModel):
 
 # ─── Metrics ──────────────────────────────────────────────────────────────────
 
+
 class ModelMetricsResponse(BaseModel):
     champion_metrics: Optional[dict[str, Any]]
     recent_runs: list[dict[str, Any]]
@@ -244,6 +258,7 @@ class ModelMetricsResponse(BaseModel):
 
 
 # ─── Operations ───────────────────────────────────────────────────────────────
+
 
 class RetrainRequest(BaseModel):
     reason: str = Field(..., description="Reason for triggering retraining")
@@ -259,6 +274,7 @@ class RetrainResponse(BaseModel):
 
 
 # ─── Health ───────────────────────────────────────────────────────────────────
+
 
 class HealthResponse(BaseModel):
     status: str

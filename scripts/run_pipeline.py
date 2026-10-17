@@ -18,11 +18,9 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 # Set up paths
@@ -30,22 +28,21 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "src"))
 
-from src.features.feature_engineer import (
+from src.features.feature_engineer import (  # noqa: E402
     ALL_FEATURES,
     FeatureEngineer,
-    SEVERITY_MAP,
     TARGET_COLUMN,
 )
-from src.models.baseline_comparator import run_full_baseline_comparison
-from src.models.kev_predictor import CISAKEVForecaster
-from src.models.risk_scorer import DEFAULT_WEIGHTS, RiskScorer
-from src.training.cross_validation import TemporalCrossValidator
-from src.training.optuna_tuner import (
+from src.models.baseline_comparator import run_full_baseline_comparison  # noqa: E402
+from src.models.kev_predictor import CISAKEVForecaster  # noqa: E402
+from src.models.risk_scorer import DEFAULT_WEIGHTS, RiskScorer  # noqa: E402
+from src.training.cross_validation import TemporalCrossValidator  # noqa: E402
+from src.training.optuna_tuner import (  # noqa: E402
     OptunaHyperparameterTuner,
     compare_imbalance_strategies,
 )
-from src.training.trainer import VulnerabilityTrainer
-from src.validation.schema_validator import VulnerabilitySchemaValidator
+from src.training.trainer import VulnerabilityTrainer  # noqa: E402
+from src.validation.schema_validator import VulnerabilitySchemaValidator  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -70,12 +67,16 @@ def main():
     else:
         logger.warning("Local real NVD file not found. Fetching from NVD API...")
         from src.ingestion.backfill import fetch_and_merge_real_data
+
         raw_df = fetch_and_merge_real_data(nvd_sample_size=100)
 
     # Filter to records with valid descriptions and severities
     labeled_df = raw_df.dropna(subset=["description", "base_severity"]).copy()
     logger.info(f"Usable labeled records: {len(labeled_df)}")
-    logger.info("Class distribution in real dataset:\n%s", labeled_df["base_severity"].value_counts())
+    logger.info(
+        "Class distribution in real dataset:\n%s",
+        labeled_df["base_severity"].value_counts(),
+    )
 
     # Load KEV catalog
     kev_cve_ids = set()
@@ -93,7 +94,9 @@ def main():
     logger.info(f"Schema validation passed: {len(clean_df)} valid records")
 
     # ─── STEP 3: Leakage-Free Symptom Feature Engineering ─────────────────────
-    logger.info("\n--- STEP 3: Pre-Publication Symptom Feature Engineering (TF-IDF + Symptoms) ---")
+    logger.info(
+        "\n--- STEP 3: Pre-Publication Symptom Feature Engineering (TF-IDF + Symptoms) ---"
+    )
     engineer = FeatureEngineer()
     engineer.fit(clean_df)
     features_df = engineer.transform(clean_df)
@@ -117,14 +120,18 @@ def main():
     X_test = test_df[feature_cols].fillna(0)
     y_test = test_df[TARGET_COLUMN].astype(int)
 
-    logger.info(f"Split sizes: Train={len(X_train)}, Val={len(X_val)}, Test={len(X_test)}")
+    logger.info(
+        f"Split sizes: Train={len(X_train)}, Val={len(X_val)}, Test={len(X_test)}"
+    )
 
     desc_train = train_df.get("description", pd.Series(dtype=str)).fillna("").tolist()
     desc_test = test_df.get("description", pd.Series(dtype=str)).fillna("").tolist()
 
     # ─── STEP 5: Baseline Models Evaluation (Exact Order) ─────────────────────
     logger.info("\n--- STEP 5: Baseline Models Hierarchy Evaluation ---")
-    logger.info("Order: Majority -> Keyword Rules -> Logistic Regression -> XGBoost/LightGBM -> DistilBERT")
+    logger.info(
+        "Order: Majority -> Keyword Rules -> Logistic Regression -> XGBoost/LightGBM -> DistilBERT"
+    )
     comparison_table, trained_baselines = run_full_baseline_comparison(
         X_train=X_train,
         y_train=y_train,
@@ -142,7 +149,9 @@ def main():
 
     monitoring_dir = project_root / "data" / "monitoring"
     monitoring_dir.mkdir(parents=True, exist_ok=True)
-    comparison_table.to_csv(monitoring_dir / "baseline_comparison_results.csv", index=False)
+    comparison_table.to_csv(
+        monitoring_dir / "baseline_comparison_results.csv", index=False
+    )
 
     # ─── STEP 6: Class Imbalance Benchmark: SMOTE vs Class Weights ────────────
     logger.info("\n--- STEP 6: Class Imbalance Strategy Benchmark (Text Features) ---")
@@ -152,7 +161,9 @@ def main():
     print("=" * 95)
     print(imbalance_results.to_string(index=False))
     print("=" * 95 + "\n")
-    imbalance_results.to_csv(monitoring_dir / "imbalance_strategy_comparison.csv", index=False)
+    imbalance_results.to_csv(
+        monitoring_dir / "imbalance_strategy_comparison.csv", index=False
+    )
 
     # ─── STEP 7: Optuna Hyperparameter Optimization ───────────────────────────
     logger.info("\n--- STEP 7: Optuna Hyperparameter Tuning (Logged to MLflow) ---")
@@ -169,11 +180,16 @@ def main():
 
     kev_forecaster.fit(X_train, y_kev_train)
     kev_metrics = kev_forecaster.evaluate(X_test, y_kev_test)
-    logger.info("KEV Forecaster Metrics: AUC-ROC=%.4f, Positive Recall=%.4f",
-                kev_metrics.get("kev_auc_roc", 0.0), kev_metrics.get("kev_positive_recall", 0.0))
+    logger.info(
+        "KEV Forecaster Metrics: AUC-ROC=%.4f, Positive Recall=%.4f",
+        kev_metrics.get("kev_auc_roc", 0.0),
+        kev_metrics.get("kev_positive_recall", 0.0),
+    )
 
     # ─── STEP 9: Empirical Risk Score Weight Justification ────────────────────
-    logger.info("\n--- STEP 9: Risk Score Weight Justification (KEV Prioritization) ---")
+    logger.info(
+        "\n--- STEP 9: Risk Score Weight Justification (KEV Prioritization) ---"
+    )
     scorer = RiskScorer(weights=DEFAULT_WEIGHTS)
     test_scores = []
     test_tiers = []
@@ -198,11 +214,15 @@ def main():
     test_df_eval = test_df.copy()
     test_df_eval["risk_score"] = test_scores
     test_df_eval["risk_tier"] = test_tiers
-    test_df_eval["in_cisa_kev"] = [r.get("cve_id") in kev_cve_ids for _, r in test_df.iterrows()]
+    test_df_eval["in_cisa_kev"] = [
+        r.get("cve_id") in kev_cve_ids for _, r in test_df.iterrows()
+    ]
 
-    kev_in_test = test_df_eval[test_df_eval["in_cisa_kev"] == True]
+    kev_in_test = test_df_eval[test_df_eval["in_cisa_kev"]]
     if len(kev_in_test) > 0:
-        top_tier_kev_count = int(kev_in_test["risk_tier"].isin(["CRITICAL_RISK", "HIGH_RISK"]).sum())
+        top_tier_kev_count = int(
+            kev_in_test["risk_tier"].isin(["CRITICAL_RISK", "HIGH_RISK"]).sum()
+        )
         kev_top_tier_recall = float(top_tier_kev_count / len(kev_in_test))
     else:
         kev_top_tier_recall = 1.0
@@ -227,11 +247,17 @@ def main():
         json.dump(weight_justification, f, indent=2)
 
     # ─── STEP 10: Champion Training & MLflow Alias Registration ───────────────
-    logger.info("\n--- STEP 10: Training Production Champion Model & MLflow Logging ---")
+    logger.info(
+        "\n--- STEP 10: Training Production Champion Model & MLflow Logging ---"
+    )
     trainer = VulnerabilityTrainer(
         experiment_name="vulnerability_severity_production",
         tracking_uri="sqlite:///mlflow.db",
-        model_config={"xgb_params": optuna_results["best_params"]} if optuna_results.get("best_params") else None,
+        model_config=(
+            {"xgb_params": optuna_results["best_params"]}
+            if optuna_results.get("best_params")
+            else None
+        ),
     )
     run_id, metrics = trainer.train(
         df_features=features_df,
@@ -241,8 +267,12 @@ def main():
     )
 
     logger.info("Training complete! Run ID: %s", run_id)
-    logger.info("Champion Metrics: Macro F1 = %.4f, Critical Recall = %.4f, ECE = %.4f",
-                metrics.get("macro_f1", 0.0), metrics.get("critical_recall", 0.0), metrics.get("ece", 0.0))
+    logger.info(
+        "Champion Metrics: Macro F1 = %.4f, Critical Recall = %.4f, ECE = %.4f",
+        metrics.get("macro_f1", 0.0),
+        metrics.get("critical_recall", 0.0),
+        metrics.get("ece", 0.0),
+    )
 
     logger.info("=================================================================")
     logger.info("  FULL ADAPTIVE MLOPS PIPELINE COMPLETED SUCCESSFULLY!           ")

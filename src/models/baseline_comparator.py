@@ -27,8 +27,6 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     balanced_accuracy_score,
-    classification_report,
-    confusion_matrix,
     f1_score,
     recall_score,
 )
@@ -36,12 +34,14 @@ from sklearn.utils.class_weight import compute_sample_weight, compute_class_weig
 
 try:
     import lightgbm as lgb
+
     HAS_LGBM = True
 except ImportError:
     HAS_LGBM = False
 
 try:
     import xgboost as xgb
+
     HAS_XGB = True
 except ImportError:
     HAS_XGB = False
@@ -50,15 +50,10 @@ try:
     import torch
     import torch.nn as nn
     from transformers import AutoTokenizer, AutoModelForSequenceClassification
+
     HAS_TRANSFORMERS = True
 except ImportError:
     HAS_TRANSFORMERS = False
-
-from src.features.feature_engineer import (
-    ALL_FEATURES,
-    SEVERITY_MAP,
-    TARGET_COLUMN,
-)
 
 logger = logging.getLogger("models.baselines")
 
@@ -272,7 +267,9 @@ class DistilBERTBaseline:
             dataset = torch.utils.data.TensorDataset(
                 inputs["input_ids"], inputs["attention_mask"], labels
             )
-            loader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
+            loader = torch.utils.data.DataLoader(
+                dataset, batch_size=self.batch_size, shuffle=True
+            )
 
             # Class weights for loss
             cw = compute_class_weight("balanced", classes=np.unique(y), y=y)
@@ -294,10 +291,15 @@ class DistilBERTBaseline:
                         break
             logger.info("DistilBERT fine-tuning completed successfully.")
         except Exception as e:
-            logger.warning("DistilBERT fine-tuning encountered error or offline mode (%s). Falling back to PyTorch MLP.", e)
+            logger.warning(
+                "DistilBERT fine-tuning encountered error or offline mode (%s). Falling back to PyTorch MLP.",
+                e,
+            )
             self.model = None
             # Fallback to PyTorch MLP on TF-IDF / tabular
-            self.fallback_model = LogisticRegressionBaseline().fit(pd.DataFrame({"len": [len(d) for d in descriptions]}), pd.Series(y))
+            self.fallback_model = LogisticRegressionBaseline().fit(
+                pd.DataFrame({"len": [len(d) for d in descriptions]}), pd.Series(y)
+            )
 
         return self
 
@@ -319,7 +321,9 @@ class DistilBERTBaseline:
                 probas = torch.softmax(logits, dim=-1).cpu().numpy()
             return probas
         elif self.fallback_model is not None:
-            return self.fallback_model.predict_proba(pd.DataFrame({"len": [len(d) for d in descriptions]}))
+            return self.fallback_model.predict_proba(
+                pd.DataFrame({"len": [len(d) for d in descriptions]})
+            )
         return np.full((len(descriptions), 4), 0.25)
 
     def predict(self, descriptions: List[str]) -> np.ndarray:
@@ -338,7 +342,9 @@ def evaluate_model_performance(
     macro_f1 = f1_score(y_true, y_pred, average="macro", zero_division=0)
     weighted_f1 = f1_score(y_true, y_pred, average="weighted", zero_division=0)
     balanced_acc = balanced_accuracy_score(y_true, y_pred)
-    recalls = recall_score(y_true, y_pred, average=None, labels=SEVERITY_CLASSES, zero_division=0)
+    recalls = recall_score(
+        y_true, y_pred, average=None, labels=SEVERITY_CLASSES, zero_division=0
+    )
     critical_recall = float(recalls[3]) if len(recalls) > 3 else 0.0
     high_recall = float(recalls[2]) if len(recalls) > 2 else 0.0
     ece = compute_ece(y_true, y_proba)
@@ -381,7 +387,9 @@ def run_full_baseline_comparison(
     b1 = MostCommonBaseline().fit(X_train, y_train)
     p1 = b1.predict(X_test)
     prob1 = b1.predict_proba(X_test)
-    results.append(evaluate_model_performance("1. Majority Class", y_test_arr, p1, prob1))
+    results.append(
+        evaluate_model_performance("1. Majority Class", y_test_arr, p1, prob1)
+    )
     models_dict["majority"] = b1
 
     # 2. Keyword rules baseline
@@ -389,7 +397,9 @@ def run_full_baseline_comparison(
     b2 = KeywordRuleBaseline().fit(X_train, y_train)
     p2 = b2.predict(X_test)
     prob2 = b2.predict_proba(X_test)
-    results.append(evaluate_model_performance("2. Keyword Rules", y_test_arr, p2, prob2))
+    results.append(
+        evaluate_model_performance("2. Keyword Rules", y_test_arr, p2, prob2)
+    )
     models_dict["keyword_rules"] = b2
 
     # 3. Logistic Regression
@@ -397,7 +407,9 @@ def run_full_baseline_comparison(
     b3 = LogisticRegressionBaseline().fit(X_train, y_train)
     p3 = b3.predict(X_test)
     prob3 = b3.predict_proba(X_test)
-    results.append(evaluate_model_performance("3. Logistic Regression", y_test_arr, p3, prob3))
+    results.append(
+        evaluate_model_performance("3. Logistic Regression", y_test_arr, p3, prob3)
+    )
     models_dict["logistic_regression"] = b3
 
     # 4a. XGBoost
@@ -406,7 +418,9 @@ def run_full_baseline_comparison(
         b4_xgb = XGBoostBaseline().fit(X_train, y_train)
         p4_xgb = b4_xgb.predict(X_test)
         prob4_xgb = b4_xgb.predict_proba(X_test)
-        results.append(evaluate_model_performance("4a. XGBoost", y_test_arr, p4_xgb, prob4_xgb))
+        results.append(
+            evaluate_model_performance("4a. XGBoost", y_test_arr, p4_xgb, prob4_xgb)
+        )
         models_dict["xgboost"] = b4_xgb
 
     # 4b. LightGBM
@@ -415,7 +429,9 @@ def run_full_baseline_comparison(
         b4_lgb = LightGBMBaseline().fit(X_train, y_train)
         p4_lgb = b4_lgb.predict(X_test)
         prob4_lgb = b4_lgb.predict_proba(X_test)
-        results.append(evaluate_model_performance("4b. LightGBM", y_test_arr, p4_lgb, prob4_lgb))
+        results.append(
+            evaluate_model_performance("4b. LightGBM", y_test_arr, p4_lgb, prob4_lgb)
+        )
         models_dict["lightgbm"] = b4_lgb
 
     # 5. DistilBERT Transformer
@@ -424,7 +440,9 @@ def run_full_baseline_comparison(
         b5 = DistilBERTBaseline().fit(descriptions_train, y_train_arr)
         p5 = b5.predict(descriptions_test)
         prob5 = b5.predict_proba(descriptions_test)
-        results.append(evaluate_model_performance("5. DistilBERT", y_test_arr, p5, prob5))
+        results.append(
+            evaluate_model_performance("5. DistilBERT", y_test_arr, p5, prob5)
+        )
         models_dict["distilbert"] = b5
 
     df_comparison = pd.DataFrame(results)

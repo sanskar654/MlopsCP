@@ -10,10 +10,8 @@ Tracks model operational and statistical performance in production:
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -96,5 +94,7 @@ class PerformanceTracker:
             "macro_f1": float(macro_f1),
             "critical_recall": float(critical_recall),
             "evaluated_samples": len(y_true),
-            "report": classification_report(y_true, y_pred, output_dict=True, zero_division=0),
+            "report": classification_report(
+                y_true, y_pred, output_dict=True, zero_division=0
+            ),
         }

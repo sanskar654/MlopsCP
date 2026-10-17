@@ -11,9 +11,8 @@ Optuna Hyperparameter Tuner & Imbalance Strategy Comparator
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict
 
-import numpy as np
 import pandas as pd
 from sklearn.metrics import f1_score
 from sklearn.utils.class_weight import compute_sample_weight
@@ -21,18 +20,19 @@ import optuna
 
 try:
     import mlflow
+
     HAS_MLFLOW = True
 except ImportError:
     HAS_MLFLOW = False
 
 try:
     from imblearn.over_sampling import SMOTE
+
     HAS_SMOTE = True
 except ImportError:
     HAS_SMOTE = False
 
 import xgboost as xgb
-import lightgbm as lgb
 
 logger = logging.getLogger("training.optuna_tuner")
 
@@ -53,44 +53,72 @@ def compare_imbalance_strategies(
     results = []
 
     # 1. Unweighted
-    clf_raw = xgb.XGBClassifier(n_estimators=100, max_depth=5, learning_rate=0.1, random_state=42)
+    clf_raw = xgb.XGBClassifier(
+        n_estimators=100, max_depth=5, learning_rate=0.1, random_state=42
+    )
     clf_raw.fit(X_train.fillna(0), y_train)
     p_raw = clf_raw.predict(X_test.fillna(0))
-    results.append({
-        "Strategy": "Unweighted Baseline",
-        "Macro F1": round(float(f1_score(y_test, p_raw, average='macro', zero_division=0)), 4),
-        "Critical Recall": round(float(f1_score(y_test == 3, p_raw == 3, zero_division=0)), 4),
-        "Rationale": "Standard empirical loss without imbalance compensation",
-    })
+    results.append(
+        {
+            "Strategy": "Unweighted Baseline",
+            "Macro F1": round(
+                float(f1_score(y_test, p_raw, average="macro", zero_division=0)), 4
+            ),
+            "Critical Recall": round(
+                float(f1_score(y_test == 3, p_raw == 3, zero_division=0)), 4
+            ),
+            "Rationale": "Standard empirical loss without imbalance compensation",
+        }
+    )
 
     # 2. SMOTE (Synthetic interpolation)
     if HAS_SMOTE:
         try:
-            sm = SMOTE(random_state=42, k_neighbors=min(5, int(y_train.value_counts().min()) - 1))
+            sm = SMOTE(
+                random_state=42,
+                k_neighbors=min(5, int(y_train.value_counts().min()) - 1),
+            )
             X_sm, y_sm = sm.fit_resample(X_train.fillna(0), y_train)
-            clf_smote = xgb.XGBClassifier(n_estimators=100, max_depth=5, learning_rate=0.1, random_state=42)
+            clf_smote = xgb.XGBClassifier(
+                n_estimators=100, max_depth=5, learning_rate=0.1, random_state=42
+            )
             clf_smote.fit(X_sm, y_sm)
             p_sm = clf_smote.predict(X_test.fillna(0))
-            results.append({
-                "Strategy": "SMOTE (Oversampling)",
-                "Macro F1": round(float(f1_score(y_test, p_sm, average='macro', zero_division=0)), 4),
-                "Critical Recall": round(float(f1_score(y_test == 3, p_sm == 3, zero_division=0)), 4),
-                "Rationale": "Synthetically interpolates sparse text coordinates (generates noisy artifacts)",
-            })
+            results.append(
+                {
+                    "Strategy": "SMOTE (Oversampling)",
+                    "Macro F1": round(
+                        float(f1_score(y_test, p_sm, average="macro", zero_division=0)),
+                        4,
+                    ),
+                    "Critical Recall": round(
+                        float(f1_score(y_test == 3, p_sm == 3, zero_division=0)), 4
+                    ),
+                    "Rationale": "Synthetically interpolates sparse text coordinates (generates noisy artifacts)",
+                }
+            )
         except Exception as e:
             logger.warning("SMOTE execution failed: %s", e)
 
     # 3. Class Weights (Cost-sensitive learning)
     weights = compute_sample_weight("balanced", y_train)
-    clf_weighted = xgb.XGBClassifier(n_estimators=100, max_depth=5, learning_rate=0.1, random_state=42)
+    clf_weighted = xgb.XGBClassifier(
+        n_estimators=100, max_depth=5, learning_rate=0.1, random_state=42
+    )
     clf_weighted.fit(X_train.fillna(0), y_train, sample_weight=weights)
     p_weighted = clf_weighted.predict(X_test.fillna(0))
-    results.append({
-        "Strategy": "Class Weights (Recommended)",
-        "Macro F1": round(float(f1_score(y_test, p_weighted, average='macro', zero_division=0)), 4),
-        "Critical Recall": round(float(f1_score(y_test == 3, p_weighted == 3, zero_division=0)), 4),
-        "Rationale": "Multiplies loss penalty on minority mistakes without distorting sparse feature vectors",
-    })
+    results.append(
+        {
+            "Strategy": "Class Weights (Recommended)",
+            "Macro F1": round(
+                float(f1_score(y_test, p_weighted, average="macro", zero_division=0)), 4
+            ),
+            "Critical Recall": round(
+                float(f1_score(y_test == 3, p_weighted == 3, zero_division=0)), 4
+            ),
+            "Rationale": "Multiplies loss penalty on minority mistakes without distorting sparse feature vectors",
+        }
+    )
 
     return pd.DataFrame(results)
 
@@ -127,7 +155,9 @@ class OptunaHyperparameterTuner:
             params = {
                 "n_estimators": trial.suggest_int("n_estimators", 80, 250, step=20),
                 "max_depth": trial.suggest_int("max_depth", 3, 8),
-                "learning_rate": trial.suggest_float("learning_rate", 0.02, 0.2, log=True),
+                "learning_rate": trial.suggest_float(
+                    "learning_rate", 0.02, 0.2, log=True
+                ),
                 "subsample": trial.suggest_float("subsample", 0.6, 1.0),
                 "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
                 "reg_alpha": trial.suggest_float("reg_alpha", 1e-3, 10.0, log=True),
@@ -148,7 +178,9 @@ class OptunaHyperparameterTuner:
             # Log trial to MLflow
             if HAS_MLFLOW:
                 try:
-                    with mlflow.start_run(run_name=f"optuna_trial_{trial.number}", nested=True):
+                    with mlflow.start_run(
+                        run_name=f"optuna_trial_{trial.number}", nested=True
+                    ):
                         mlflow.log_params(params)
                         mlflow.log_metric("trial_macro_f1", macro_f1)
                 except Exception:

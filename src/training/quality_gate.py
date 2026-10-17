@@ -52,18 +52,27 @@ class ModelQualityGate:
         max_latency_p95_ms: float | None = None,
     ):
         custom = thresholds or {}
-        if min_macro_f1 is not None: custom["min_macro_f1"] = min_macro_f1
-        if min_critical_recall is not None: custom["min_critical_recall"] = min_critical_recall
-        if max_ece is not None: custom["max_ece"] = max_ece
-        if max_latency_p95_ms is not None: custom["max_latency_p99_ms"] = max_latency_p95_ms
+        if min_macro_f1 is not None:
+            custom["min_macro_f1"] = min_macro_f1
+        if min_critical_recall is not None:
+            custom["min_critical_recall"] = min_critical_recall
+        if max_ece is not None:
+            custom["max_ece"] = max_ece
+        if max_latency_p95_ms is not None:
+            custom["max_latency_p99_ms"] = max_latency_p95_ms
 
         self.thresholds = {**DEFAULT_THRESHOLDS, **custom}
 
-    def promote_to_production(self, run_id: str, model_name: str = "vulnerability-severity-classifier") -> bool:
+    def promote_to_production(
+        self, run_id: str, model_name: str = "vulnerability-severity-classifier"
+    ) -> bool:
         """Promote model run_id to Champion in MLflow and database model_registry."""
-        logger.info(f"Promoting model run {run_id} ({model_name}) to Champion/Production...")
+        logger.info(
+            f"Promoting model run {run_id} ({model_name}) to Champion/Production..."
+        )
         try:
             import mlflow
+
             client = mlflow.tracking.MlflowClient()
             # Transition MLflow registered model stage if available
             try:
@@ -79,7 +88,6 @@ class ModelQualityGate:
         except Exception as err:
             logger.warning(f"Promotion helper logged with fallback: {err}")
             return True
-
 
     def evaluate(
         self,
@@ -107,9 +115,7 @@ class ModelQualityGate:
         checks["macro_f1_threshold"] = macro_f1 >= min_f1
         details["macro_f1"] = {"value": macro_f1, "threshold": min_f1}
         if not checks["macro_f1_threshold"]:
-            failures.append(
-                f"Macro F1 {macro_f1:.4f} < threshold {min_f1:.4f}"
-            )
+            failures.append(f"Macro F1 {macro_f1:.4f} < threshold {min_f1:.4f}")
 
         # ── Check 2: Critical Class Recall ───────────────────────────────
         critical_recall = metrics.get("critical_recall", 0.0)
@@ -178,7 +184,8 @@ class ModelQualityGate:
             "failures": failures,
             "details": details,
             "summary": (
-                f"PASSED ({len(checks)} checks)" if passed
+                f"PASSED ({len(checks)} checks)"
+                if passed
                 else f"FAILED ({len(failures)}/{len(checks)} checks failed)"
             ),
         }
@@ -204,8 +211,14 @@ class ModelQualityGate:
         Returns detailed comparison for dashboard display.
         """
         metric_keys = [
-            "macro_f1", "weighted_f1", "critical_recall", "high_recall",
-            "roc_auc", "ece", "balanced_accuracy", "latency_p99_ms",
+            "macro_f1",
+            "weighted_f1",
+            "critical_recall",
+            "high_recall",
+            "roc_auc",
+            "ece",
+            "balanced_accuracy",
+            "latency_p99_ms",
         ]
 
         comparison = {}
@@ -236,5 +249,9 @@ class ModelQualityGate:
             "metrics": comparison,
             "challenger_wins": n_challenger_wins,
             "total_metrics": len(metric_keys),
-            "recommendation": "PROMOTE" if n_challenger_wins > len(metric_keys) // 2 else "KEEP_CHAMPION",
+            "recommendation": (
+                "PROMOTE"
+                if n_challenger_wins > len(metric_keys) // 2
+                else "KEEP_CHAMPION"
+            ),
         }

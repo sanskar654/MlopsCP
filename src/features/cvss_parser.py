@@ -109,7 +109,9 @@ def parse_cvss_vector(vector_string: str | None) -> dict[str, str | None]:
             "version": version,
             "attack_vector": ATTACK_VECTOR_MAP.get(metrics.get("AV", ""), None),
             "attack_complexity": ATTACK_COMPLEXITY_MAP.get(metrics.get("AC", ""), None),
-            "privileges_required": PRIVILEGES_REQUIRED_MAP.get(metrics.get("PR", ""), None),
+            "privileges_required": PRIVILEGES_REQUIRED_MAP.get(
+                metrics.get("PR", ""), None
+            ),
             "user_interaction": USER_INTERACTION_MAP.get(metrics.get("UI", ""), None),
             "scope": SCOPE_MAP.get(metrics.get("S", ""), None),
             "confidentiality_impact": IMPACT_MAP.get(metrics.get("C", ""), None),

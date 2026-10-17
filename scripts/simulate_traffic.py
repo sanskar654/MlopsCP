@@ -26,7 +26,9 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "src"))
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+)
 logger = logging.getLogger("load_test")
 
 SAMPLE_CVE_PAYLOADS = [
@@ -97,7 +99,12 @@ def run_benchmark(
     """
     Executes benchmark requests and computes latency percentiles.
     """
-    logger.info("Starting load benchmark: %d requests to %s%s...", n_requests, base_url, endpoint)
+    logger.info(
+        "Starting load benchmark: %d requests to %s%s...",
+        n_requests,
+        base_url,
+        endpoint,
+    )
 
     latencies_ms: List[float] = []
     success_count = 0
@@ -116,9 +123,12 @@ def run_benchmark(
         server_online = False
 
     if not server_online and use_client_fallback:
-        logger.info("Live server not detected. Running load test in-process via FastAPI TestClient...")
+        logger.info(
+            "Live server not detected. Running load test in-process via FastAPI TestClient..."
+        )
         from fastapi.testclient import TestClient
         from src.serving.api.main import app
+
         client = TestClient(app)
 
     total_start = time.perf_counter()
@@ -174,7 +184,9 @@ def run_benchmark(
         "total_requests": n_requests,
         "successful_requests": success_count,
         "failed_requests": error_count,
-        "success_rate_percent": round(float(success_count / max(n_requests, 1)) * 100, 2),
+        "success_rate_percent": round(
+            float(success_count / max(n_requests, 1)) * 100, 2
+        ),
         "total_duration_seconds": round(total_duration, 2),
         "throughput_rps": round(rps, 2),
         "latency_min_ms": round(min_lat, 2),

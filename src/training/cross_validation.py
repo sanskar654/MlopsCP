@@ -11,9 +11,7 @@ temporal data leakage. All splits here are strict cutoff-based.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
-import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -132,9 +130,7 @@ class TemporalCrossValidator:
                 break
 
             folds.append((train_df, val_df))
-            logger.debug(
-                f"Fold {i}: train={len(train_df)}, val={len(val_df)}"
-            )
+            logger.debug(f"Fold {i}: train={len(train_df)}, val={len(val_df)}")
 
         logger.info(f"Created {len(folds)} temporal CV folds")
         return folds

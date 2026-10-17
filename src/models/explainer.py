@@ -50,9 +50,12 @@ class SHAPExplainer:
         """
         try:
             import shap
+
             base_model = self.classifier.get_base_model()
             if base_model is None:
-                raise ValueError("Classifier must be fitted before initializing explainer")
+                raise ValueError(
+                    "Classifier must be fitted before initializing explainer"
+                )
 
             bg = background_data.fillna(0)
             self._shap_explainer = shap.TreeExplainer(
@@ -86,7 +89,6 @@ class SHAPExplainer:
             return self._fallback_explanation(X, predicted_class)
 
         try:
-            import shap
             X_filled = X.fillna(0)
             shap_values = self._shap_explainer.shap_values(X_filled)
 
@@ -198,15 +200,13 @@ class SHAPExplainer:
 
         if positive:
             factors = ", ".join(
-                f"`{c['feature']}` (+{c['shap_value']:.3f})"
-                for c in positive[:3]
+                f"`{c['feature']}` (+{c['shap_value']:.3f})" for c in positive[:3]
             )
             lines.append(f"Factors **increasing** severity: {factors}.")
 
         if negative:
             factors = ", ".join(
-                f"`{c['feature']}` ({c['shap_value']:.3f})"
-                for c in negative[:3]
+                f"`{c['feature']}` ({c['shap_value']:.3f})" for c in negative[:3]
             )
             lines.append(f"Factors **decreasing** severity: {factors}.")
 
@@ -223,10 +223,9 @@ class SHAPExplainer:
             "predicted_label": SEVERITY_LABELS[predicted_class],
             "base_value": None,
             "top_features": [
-                {"feature": k, "shap_value": None, "importance": v}
-                for k, v in top
+                {"feature": k, "shap_value": None, "importance": v} for k, v in top
             ],
             "explanation_text": f"Predicted {SEVERITY_LABELS[predicted_class]}. "
-                               f"SHAP unavailable; showing feature importance.",
+            f"SHAP unavailable; showing feature importance.",
             "total_shap_sum": None,
         }

@@ -26,11 +26,12 @@ import logging
 import os
 import time
 from contextlib import asynccontextmanager
-from typing import Any
+from pathlib import Path
 
 try:
     import mlflow
     import mlflow.sklearn
+
     HAS_MLFLOW = True
 except ImportError:
     mlflow = None
@@ -40,6 +41,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 try:
     from loguru import logger
@@ -125,10 +127,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
 @app.get("/api/docs", include_in_schema=False)
 async def redirect_api_docs():
     from fastapi.responses import RedirectResponse
+
     return RedirectResponse(url="/docs")
+
 
 app.state.model_registry = model_registry
 
@@ -181,13 +186,13 @@ app.include_router(metrics.router, prefix="/api/v1", tags=["Metrics"])
 app.include_router(retrain.router, prefix="/api/v1", tags=["Operations"])
 
 
-from pathlib import Path
-from fastapi.staticfiles import StaticFiles
-
 dashboard_path = Path(__file__).resolve().parent.parent.parent / "dashboard"
 if dashboard_path.exists():
-    app.mount("/", StaticFiles(directory=str(dashboard_path), html=True), name="dashboard")
+    app.mount(
+        "/", StaticFiles(directory=str(dashboard_path), html=True), name="dashboard"
+    )
 else:
+
     @app.get("/", include_in_schema=False)
     async def root():
         return {

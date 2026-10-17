@@ -4,7 +4,6 @@ Integration Tests: FastAPI Serving Layer
 Tests live request/response handling, input schema validation, and health checks.
 """
 
-import pytest
 from fastapi.testclient import TestClient
 from serving.api.main import app
 

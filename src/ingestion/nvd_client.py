@@ -32,8 +32,8 @@ logger = logging.getLogger(__name__)
 NVD_BASE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 PAGE_SIZE = 2000  # Max allowed by NVD API
 # Rate limit windows
-RATE_LIMIT_NO_KEY = (5, 30)    # 5 requests per 30 seconds
-RATE_LIMIT_WITH_KEY = (50, 30) # 50 requests per 30 seconds
+RATE_LIMIT_NO_KEY = (5, 30)  # 5 requests per 30 seconds
+RATE_LIMIT_WITH_KEY = (50, 30)  # 50 requests per 30 seconds
 
 
 class NVDRateLimiter:
@@ -79,15 +79,19 @@ class NVDClient:
         self.session = requests.Session()
         if api_key:
             self.session.headers.update({"apiKey": api_key})
-        self.session.headers.update({
-            "Accept": "application/json",
-            "User-Agent": "VulnMLOps/1.0 (syngenta-evaluation; contact@mlops.local)"
-        })
+        self.session.headers.update(
+            {
+                "Accept": "application/json",
+                "User-Agent": "VulnMLOps/1.0 (syngenta-evaluation; contact@mlops.local)",
+            }
+        )
         self.rate_limiter = NVDRateLimiter(has_api_key=bool(api_key))
         self.max_retries = max_retries
 
     @retry(
-        retry=retry_if_exception_type((requests.Timeout, requests.ConnectionError, requests.HTTPError)),
+        retry=retry_if_exception_type(
+            (requests.Timeout, requests.ConnectionError, requests.HTTPError)
+        ),
         wait=wait_exponential(multiplier=3, min=6, max=60),
         stop=stop_after_attempt(5),
         reraise=True,
@@ -109,7 +113,6 @@ class NVDClient:
             raise requests.ConnectionError("NVD API service unavailable (503)")
         resp.raise_for_status()
         return resp.json()
-
 
     def fetch_cves_since(
         self,
@@ -139,9 +142,7 @@ class NVDClient:
         start_str = start_date.strftime(fmt)
         end_str = end_date.strftime(fmt)
 
-        logger.info(
-            f"Fetching CVEs modified between {start_str} and {end_str}"
-        )
+        logger.info(f"Fetching CVEs modified between {start_str} and {end_str}")
 
         start_index = 0
         total_results = None
@@ -168,9 +169,7 @@ class NVDClient:
                 break
 
             yield vulns
-            logger.info(
-                f"Fetched {start_index + len(vulns)}/{total_results} CVEs"
-            )
+            logger.info(f"Fetched {start_index + len(vulns)}/{total_results} CVEs")
 
             start_index += len(vulns)
             if start_index >= total_results:
@@ -239,7 +238,9 @@ def parse_nvd_cve(raw_cve: dict[str, Any]) -> dict[str, Any] | None:
         cwe_ids = []
         for w in weaknesses:
             for desc in w.get("description", []):
-                if desc.get("lang") == "en" and desc.get("value", "").startswith("CWE-"):
+                if desc.get("lang") == "en" and desc.get("value", "").startswith(
+                    "CWE-"
+                ):
                     cwe_ids.append(desc["value"])
 
         # References

@@ -23,7 +23,7 @@ Output:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
@@ -79,7 +79,9 @@ class CISAKEVForecaster:
                 added_date = kev_lookup[cve_id]
                 diff_days = (added_date - pub_date).total_seconds() / (24 * 3600)
                 # Exploited within time window or historically cataloged
-                targets.append(1 if (0 <= diff_days <= window_days or diff_days < 0) else 1)
+                targets.append(
+                    1 if (0 <= diff_days <= window_days or diff_days < 0) else 1
+                )
             elif cve_id in kev_lookup:
                 targets.append(1)
             else:
@@ -121,12 +123,14 @@ class CISAKEVForecaster:
             else:
                 tier = "LOW_EXPLOITATION_RISK"
 
-            results.append({
-                "kev_exploitation_probability": round(p_val, 4),
-                "exploitation_risk_tier": tier,
-                "predicted_kev_30d": bool(p_val >= 0.50),
-                "predicted_kev_90d": bool(p_val >= 0.35),
-            })
+            results.append(
+                {
+                    "kev_exploitation_probability": round(p_val, 4),
+                    "exploitation_risk_tier": tier,
+                    "predicted_kev_30d": bool(p_val >= 0.50),
+                    "predicted_kev_90d": bool(p_val >= 0.35),
+                }
+            )
         return results
 
     def evaluate(self, X_test: pd.DataFrame, y_test: pd.Series) -> Dict[str, Any]:
@@ -146,7 +150,9 @@ class CISAKEVForecaster:
             "kev_auc_roc": round(auc_roc, 4),
             "kev_f1_score": round(f1, 4),
             "kev_positive_recall": round(report.get("1", {}).get("recall", 0.0), 4),
-            "kev_positive_precision": round(report.get("1", {}).get("precision", 0.0), 4),
+            "kev_positive_precision": round(
+                report.get("1", {}).get("precision", 0.0), 4
+            ),
         }
         logger.info("KEV Forecaster Evaluation: AUC=%.4f, F1=%.4f", auc_roc, f1)
         return metrics

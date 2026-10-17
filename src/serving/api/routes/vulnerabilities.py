@@ -1,6 +1,6 @@
 """Vulnerabilities route."""
+
 from __future__ import annotations
-import os
 from pathlib import Path
 from typing import List, Optional
 import pandas as pd
@@ -8,6 +8,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 router = APIRouter()
+
 
 class VulnerabilitySummary(BaseModel):
     cve_id: str
@@ -19,6 +20,7 @@ class VulnerabilitySummary(BaseModel):
     vendor: Optional[str] = "N/A"
     cwe: Optional[str] = "N/A"
 
+
 MOCK_VULNS = [
     VulnerabilitySummary(
         cve_id="CVE-2021-44228",
@@ -28,7 +30,7 @@ MOCK_VULNS = [
         cisa_kev=True,
         epss_score=0.975,
         vendor="Apache",
-        cwe="CWE-502"
+        cwe="CWE-502",
     ),
     VulnerabilitySummary(
         cve_id="CVE-2023-38606",
@@ -38,7 +40,7 @@ MOCK_VULNS = [
         cisa_kev=True,
         epss_score=0.812,
         vendor="Apple",
-        cwe="CWE-20"
+        cwe="CWE-20",
     ),
     VulnerabilitySummary(
         cve_id="CVE-2024-21626",
@@ -48,9 +50,10 @@ MOCK_VULNS = [
         cisa_kev=False,
         epss_score=0.450,
         vendor="Docker/runc",
-        cwe="CWE-403"
+        cwe="CWE-403",
     ),
 ]
+
 
 def _load_dataset_vulns() -> List[VulnerabilitySummary]:
     dataset_path = Path("data/raw/vulnerabilities_dataset.parquet")
@@ -62,13 +65,15 @@ def _load_dataset_vulns() -> List[VulnerabilitySummary]:
                 res.append(
                     VulnerabilitySummary(
                         cve_id=str(r.get("cve_id", "CVE-2024-0000")),
-                        description=str(r.get("description", "Vulnerability advisory text")),
+                        description=str(
+                            r.get("description", "Vulnerability advisory text")
+                        ),
                         severity=str(r.get("base_severity", "HIGH")).upper(),
                         cvss_score=float(r.get("base_score", 7.5) or 7.5),
                         cisa_kev=bool(r.get("in_cisa_kev", False)),
                         epss_score=float(r.get("epss_score", 0.1) or 0.1),
                         vendor=str(r.get("vendor", "Generic")),
-                        cwe=str(r.get("cwe", "CWE-99"))
+                        cwe=str(r.get("cwe", "CWE-99")),
                     )
                 )
             return res
@@ -76,16 +81,17 @@ def _load_dataset_vulns() -> List[VulnerabilitySummary]:
             pass
     return MOCK_VULNS
 
+
 @router.get("/vulnerabilities", response_model=List[VulnerabilitySummary])
 async def list_vulnerabilities(
-    limit: int = Query(50, ge=1, le=500),
-    severity: Optional[str] = Query(None)
+    limit: int = Query(50, ge=1, le=500), severity: Optional[str] = Query(None)
 ):
     """Retrieve indexed vulnerabilities with optional severity filtering."""
     vulns = _load_dataset_vulns()
     if severity and severity.upper() != "ALL":
         vulns = [v for v in vulns if v.severity.upper() == severity.upper()]
     return vulns[:limit]
+
 
 @router.get("/vulnerabilities/{cve_id}", response_model=VulnerabilitySummary)
 async def get_vulnerability(cve_id: str):
@@ -102,6 +108,5 @@ async def get_vulnerability(cve_id: str):
         cisa_kev=False,
         epss_score=0.35,
         vendor="N/A",
-        cwe="CWE-99"
+        cwe="CWE-99",
     )
-

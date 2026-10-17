@@ -16,9 +16,8 @@ project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "src"))
 
-from src.models.risk_scorer import RiskScorer
-from src.monitoring.drift_detector import StatisticalDriftDetector
-from src.training.quality_gate import ModelQualityGate
+from src.models.risk_scorer import RiskScorer  # noqa: E402
+from src.training.quality_gate import ModelQualityGate  # noqa: E402
 
 
 class TestRiskScorer(unittest.TestCase):
@@ -54,13 +53,15 @@ class TestRiskScorer(unittest.TestCase):
 
 class TestModelQualityGate(unittest.TestCase):
     def setUp(self):
-        self.gate = ModelQualityGate(thresholds={
-            "min_macro_f1": 0.80,
-            "min_critical_recall": 0.85,
-            "max_ece": 0.10,
-            "max_latency_p99_ms": 50.0,
-            "champion_improvement_margin": 0.0,
-        })
+        self.gate = ModelQualityGate(
+            thresholds={
+                "min_macro_f1": 0.80,
+                "min_critical_recall": 0.85,
+                "max_ece": 0.10,
+                "max_latency_p99_ms": 50.0,
+                "champion_improvement_margin": 0.0,
+            }
+        )
 
     def test_quality_gate_pass(self):
         metrics = {

@@ -19,14 +19,14 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
 from sklearn.metrics import classification_report, confusion_matrix, f1_score
 
 from src.features.feature_engineer import SEVERITY_MAP
-from src.ingestion.nvd_client import NVDClient, parse_nvd_cve
+from src.ingestion.nvd_client import NVDClient
 from src.serving.api.db import get_recent_predictions
 
 logger = logging.getLogger("monitoring.late_labels")
@@ -55,19 +55,29 @@ class LateLabelEvaluator:
 
         # Fallback if DB is empty: read recent sample
         if pred_df.empty:
-            logger.info("predictions_log is empty in DB. Checking local inference cache.")
+            logger.info(
+                "predictions_log is empty in DB. Checking local inference cache."
+            )
             cached_sample = Path("data/raw/nvd_cves_recent.csv")
             if cached_sample.exists():
-                raw_cves = pd.read_csv(cached_sample).dropna(subset=["base_severity"]).head(150)
-                pred_df = pd.DataFrame({
-                    "cve_id": raw_cves["cve_id"],
-                    "prediction": raw_cves["base_severity"].map(
-                        lambda s: "CRITICAL" if s == "HIGH" else s  # simulate small real-world discrepancy
-                    ),
-                    "confidence": 0.88,
-                    "model_version": "v2.0-champion",
-                    "predicted_at": datetime.now(timezone.utc).isoformat(),
-                })
+                raw_cves = (
+                    pd.read_csv(cached_sample)
+                    .dropna(subset=["base_severity"])
+                    .head(150)
+                )
+                pred_df = pd.DataFrame(
+                    {
+                        "cve_id": raw_cves["cve_id"],
+                        "prediction": raw_cves["base_severity"].map(
+                            lambda s: (
+                                "CRITICAL" if s == "HIGH" else s
+                            )  # simulate small real-world discrepancy
+                        ),
+                        "confidence": 0.88,
+                        "model_version": "v2.0-champion",
+                        "predicted_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
             else:
                 return {"status": "no_predictions_to_evaluate"}
 
@@ -82,8 +92,12 @@ class LateLabelEvaluator:
             # Check local NVD dataset
             local_nvd = Path("data/raw/nvd_cves_recent.csv")
             if local_nvd.exists():
-                df_nvd = pd.read_csv(local_nvd, usecols=["cve_id", "base_severity"]).dropna()
-                gt_map = dict(zip(df_nvd["cve_id"], df_nvd["base_severity"].str.upper()))
+                df_nvd = pd.read_csv(
+                    local_nvd, usecols=["cve_id", "base_severity"]
+                ).dropna()
+                gt_map = dict(
+                    zip(df_nvd["cve_id"], df_nvd["base_severity"].str.upper())
+                )
 
         # 3. Match predictions with late ground truth
         matched_preds = []
@@ -101,7 +115,10 @@ class LateLabelEvaluator:
                     cve_ids_evaluated.append(cve_id)
 
         if len(matched_preds) < 5:
-            logger.info("Insufficient late labels resolved yet (%d matched).", len(matched_preds))
+            logger.info(
+                "Insufficient late labels resolved yet (%d matched).",
+                len(matched_preds),
+            )
             return {
                 "status": "awaiting_late_labels",
                 "matched_count": len(matched_preds),
@@ -114,7 +131,11 @@ class LateLabelEvaluator:
 
         macro_f1 = f1_score(y_true, y_pred, average="macro", zero_division=0)
         report = classification_report(
-            matched_truths, matched_preds, labels=LABELS_ORDER, output_dict=True, zero_division=0
+            matched_truths,
+            matched_preds,
+            labels=LABELS_ORDER,
+            output_dict=True,
+            zero_division=0,
         )
         cm = confusion_matrix(matched_truths, matched_preds, labels=LABELS_ORDER)
 

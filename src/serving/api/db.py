@@ -44,7 +44,9 @@ def get_db_engine() -> Optional[Engine]:
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
         postgres_user = os.getenv("POSTGRES_USER", "mlops_user")
-        postgres_password = os.getenv("POSTGRES_PASSWORD", "mlops_secure_pass_change_me")
+        postgres_password = os.getenv(
+            "POSTGRES_PASSWORD", "mlops_secure_pass_change_me"
+        )
         postgres_host = os.getenv("POSTGRES_HOST", "postgres")
         postgres_port = os.getenv("POSTGRES_PORT", "5432")
         postgres_db = os.getenv("POSTGRES_DB", "vuln_mlops")
@@ -63,7 +65,9 @@ def get_db_engine() -> Optional[Engine]:
         logger.info("Successfully connected to PostgreSQL database.")
         return _engine
     except Exception as e:
-        logger.warning(f"Database connection unavailable ({e}). Running in fallback mode.")
+        logger.warning(
+            f"Database connection unavailable ({e}). Running in fallback mode."
+        )
         _engine = None
         _last_failure_time = now
         return None
@@ -81,16 +85,20 @@ def log_prediction_to_db(
     """
     engine = get_db_engine()
     if engine is None:
-        logger.debug(f"[Fallback] Prediction logged locally: cve_id={cve_id}, pred={prediction}")
+        logger.debug(
+            f"[Fallback] Prediction logged locally: cve_id={cve_id}, pred={prediction}"
+        )
         return False
 
     try:
         features_json = json.dumps(features_snapshot)
         with engine.begin() as conn:
-            query = text("""
+            query = text(
+                """
                 INSERT INTO predictions_log (cve_id, model_version, predicted_at, prediction, confidence, features_snapshot)
                 VALUES (:cve_id, :model_version, :predicted_at, :prediction, :confidence, CAST(:features_snapshot AS JSONB))
-            """)
+            """
+            )
             conn.execute(
                 query,
                 {
@@ -122,15 +130,19 @@ def log_feedback_to_db(
     """
     engine = get_db_engine()
     if engine is None:
-        logger.info(f"[Fallback] Feedback logged locally: cve_id={cve_id}, corrected={corrected_severity}")
+        logger.info(
+            f"[Fallback] Feedback logged locally: cve_id={cve_id}, corrected={corrected_severity}"
+        )
         return False
 
     try:
         with engine.begin() as conn:
-            query = text("""
+            query = text(
+                """
                 INSERT INTO analyst_feedback (cve_id, analyst_id, predicted_severity, corrected_severity, feedback_notes, confidence_rating, used_for_retraining, submitted_at)
                 VALUES (:cve_id, :analyst_id, :predicted_severity, :corrected_severity, :feedback_notes, :confidence_rating, FALSE, :submitted_at)
-            """)
+            """
+            )
             conn.execute(
                 query,
                 {
@@ -143,7 +155,9 @@ def log_feedback_to_db(
                     "submitted_at": datetime.now(timezone.utc),
                 },
             )
-        logger.info(f"Recorded analyst feedback in DB for {cve_id}: corrected={corrected_severity}")
+        logger.info(
+            f"Recorded analyst feedback in DB for {cve_id}: corrected={corrected_severity}"
+        )
         return True
     except SQLAlchemyError as e:
         logger.error(f"Failed to store feedback in PostgreSQL: {e}")
@@ -156,18 +170,22 @@ def get_recent_predictions(days: int = 7, limit: int = 5000) -> pd.DataFrame:
     """
     engine = get_db_engine()
     if engine is None:
-        logger.warning("No DB connection for recent predictions. Returning empty DataFrame.")
+        logger.warning(
+            "No DB connection for recent predictions. Returning empty DataFrame."
+        )
         return pd.DataFrame()
 
     try:
         since = datetime.now(timezone.utc) - timedelta(days=days)
-        query = text("""
+        query = text(
+            """
             SELECT cve_id, model_version, predicted_at, prediction, confidence, features_snapshot
             FROM predictions_log
             WHERE predicted_at >= :since
             ORDER BY predicted_at DESC
             LIMIT :limit
-        """)
+        """
+        )
         with engine.connect() as conn:
             df = pd.read_sql_query(query, conn, params={"since": since, "limit": limit})
         return df
@@ -185,11 +203,13 @@ def get_unretrained_feedback() -> pd.DataFrame:
         return pd.DataFrame()
 
     try:
-        query = text("""
+        query = text(
+            """
             SELECT id, cve_id, analyst_id, predicted_severity, corrected_severity, feedback_notes, confidence_rating, submitted_at
             FROM analyst_feedback
             WHERE used_for_retraining = FALSE
-        """)
+        """
+        )
         with engine.connect() as conn:
             df = pd.read_sql_query(query, conn)
         return df
@@ -212,7 +232,9 @@ def mark_feedback_used(feedback_ids: List[int]) -> bool:
     try:
         with engine.begin() as conn:
             conn.execute(
-                text("UPDATE analyst_feedback SET used_for_retraining = TRUE WHERE id = ANY(:ids)"),
+                text(
+                    "UPDATE analyst_feedback SET used_for_retraining = TRUE WHERE id = ANY(:ids)"
+                ),
                 {"ids": feedback_ids},
             )
         return True

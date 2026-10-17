@@ -17,7 +17,7 @@ import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -221,7 +221,10 @@ class DriftMonitor:
         logger.info("Querying PostgreSQL predictions_log for last %d days...", days)
         df_db = get_recent_predictions(days=days)
         if not df_db.empty:
-            logger.info("Retrieved %d production prediction records from PostgreSQL.", len(df_db))
+            logger.info(
+                "Retrieved %d production prediction records from PostgreSQL.",
+                len(df_db),
+            )
             rows = []
             for _, r in df_db.iterrows():
                 row_dict = {"cve_id": r["cve_id"], "prediction": r["prediction"]}
@@ -234,7 +237,9 @@ class DriftMonitor:
         # Fallback to recent processed features if DB is empty
         fallback_path = Path("data/processed/features.parquet")
         if fallback_path.exists():
-            logger.info("PostgreSQL empty. Using recent sample from %s as proxy.", fallback_path)
+            logger.info(
+                "PostgreSQL empty. Using recent sample from %s as proxy.", fallback_path
+            )
             return pd.read_parquet(fallback_path).tail(200)
 
         return pd.DataFrame()
@@ -247,12 +252,15 @@ class DriftMonitor:
     ) -> Dict[str, Any]:
         """Perform comprehensive feature, text embedding, and CWE distribution drift analysis."""
         if self.reference_df is None:
-            raise ValueError("Reference data is not loaded. Call load_reference_data() first.")
+            raise ValueError(
+                "Reference data is not loaded. Call load_reference_data() first."
+            )
 
         # Identify numeric and categorical columns
         if feature_columns is None:
             feature_columns = [
-                c for c in current_df.columns
+                c
+                for c in current_df.columns
                 if c in self.reference_df.columns
                 and pd.api.types.is_numeric_dtype(current_df[c])
                 and not c.startswith("tfidf_")
@@ -260,7 +268,8 @@ class DriftMonitor:
 
         if categorical_columns is None:
             categorical_columns = [
-                c for c in current_df.columns
+                c
+                for c in current_df.columns
                 if c in self.reference_df.columns
                 and not pd.api.types.is_numeric_dtype(current_df[c])
             ]
@@ -289,7 +298,11 @@ class DriftMonitor:
                     drifted_features_count += 1
 
         # 3. Text Embedding Drift (TF-IDF columns)
-        tfidf_cols = [c for c in self.reference_df.columns if c.startswith("tfidf_") and c in current_df.columns]
+        tfidf_cols = [
+            c
+            for c in self.reference_df.columns
+            if c.startswith("tfidf_") and c in current_df.columns
+        ]
         if tfidf_cols:
             ref_mat = self.reference_df[tfidf_cols].fillna(0).values
             curr_mat = current_df[tfidf_cols].fillna(0).values
@@ -299,7 +312,10 @@ class DriftMonitor:
                 drifted_features_count += 1
 
         # 4. CWE Weakness Distribution Drift
-        if "cwe_category_id" in self.reference_df.columns and "cwe_category_id" in current_df.columns:
+        if (
+            "cwe_category_id" in self.reference_df.columns
+            and "cwe_category_id" in current_df.columns
+        ):
             cwe_res = self.detector.detect_cwe_drift(
                 self.reference_df["cwe_category_id"], current_df["cwe_category_id"]
             )
@@ -319,7 +335,9 @@ class DriftMonitor:
             "drifted_features_count": drifted_features_count,
             "total_features_tested": total_tested,
             "metrics_per_feature": feature_drift_results,
-            "recommendation": "TRIGGER_RETRAINING" if dataset_drift else "SYSTEM_STABLE",
+            "recommendation": (
+                "TRIGGER_RETRAINING" if dataset_drift else "SYSTEM_STABLE"
+            ),
         }
 
         logger.info(

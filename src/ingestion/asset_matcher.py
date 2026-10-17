@@ -131,11 +131,15 @@ def match_assets_to_cves(
                     matched = True
 
             if matched:
-                matches.append({
-                    "asset_id": asset_id,
-                    "cve_id": cve_id,
-                })
+                matches.append(
+                    {
+                        "asset_id": asset_id,
+                        "cve_id": cve_id,
+                    }
+                )
 
     df_map = pd.DataFrame(matches).drop_duplicates()
-    logger.info(f"Asset-CVE Matcher: Found {len(df_map)} matches across {len(df_assets)} assets")
+    logger.info(
+        f"Asset-CVE Matcher: Found {len(df_map)} matches across {len(df_assets)} assets"
+    )
     return df_map

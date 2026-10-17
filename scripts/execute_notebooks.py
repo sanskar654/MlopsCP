@@ -9,7 +9,6 @@ from __future__ import annotations
 import io
 import json
 import sys
-import trace
 import traceback
 from contextlib import redirect_stdout, redirect_stderr
 from pathlib import Path
@@ -71,28 +70,34 @@ def execute_notebook(notebook_path: str | Path) -> None:
                 stderr_text = stderr_buf.getvalue()
 
                 if stdout_text:
-                    cell_outputs.append({
-                        "name": "stdout",
-                        "output_type": "stream",
-                        "text": stdout_text.splitlines(keepends=True)
-                    })
+                    cell_outputs.append(
+                        {
+                            "name": "stdout",
+                            "output_type": "stream",
+                            "text": stdout_text.splitlines(keepends=True),
+                        }
+                    )
 
                 if stderr_text:
-                    cell_outputs.append({
-                        "name": "stderr",
-                        "output_type": "stream",
-                        "text": stderr_text.splitlines(keepends=True)
-                    })
+                    cell_outputs.append(
+                        {
+                            "name": "stderr",
+                            "output_type": "stream",
+                            "text": stderr_text.splitlines(keepends=True),
+                        }
+                    )
 
             except Exception as e:
                 err_msg = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
                 print(f"    Cell Error: {e}")
-                cell_outputs.append({
-                    "ename": type(e).__name__,
-                    "evalue": str(e),
-                    "output_type": "error",
-                    "traceback": err_msg.splitlines(keepends=True)
-                })
+                cell_outputs.append(
+                    {
+                        "ename": type(e).__name__,
+                        "evalue": str(e),
+                        "output_type": "error",
+                        "traceback": err_msg.splitlines(keepends=True),
+                    }
+                )
 
             cell["outputs"] = cell_outputs
             exec_count += 1

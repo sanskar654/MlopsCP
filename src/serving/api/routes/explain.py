@@ -1,4 +1,5 @@
 """SHAP explanation route."""
+
 from __future__ import annotations
 import numpy as np
 from fastapi import APIRouter, HTTPException, Request
@@ -21,10 +22,14 @@ async def explain_prediction(req: ExplainRequest, request: Request):
 
     try:
         from src.serving.api.schemas import PredictRequest
-        pred_req = PredictRequest(**{
-            k: v for k, v in req.model_dump().items()
-            if k in PredictRequest.model_fields
-        })
+
+        pred_req = PredictRequest(
+            **{
+                k: v
+                for k, v in req.model_dump().items()
+                if k in PredictRequest.model_fields
+            }
+        )
         X = _build_feature_row(pred_req)
         proba = registry.predict(X)
         pred_class = int(np.argmax(proba[0]))
@@ -61,12 +66,13 @@ def _try_shap_explain(registry, X, pred_class: int, top_n: int) -> dict:
     """Attempt SHAP explanation, fall back to feature importance."""
     try:
         import shap
+
         model = registry._champion
         # Direct SHAP on calibrated model's base estimator
-        if hasattr(model, 'estimator'):
+        if hasattr(model, "estimator"):
             base = model.estimator
-        elif hasattr(model, 'named_steps'):
-            base = model.named_steps.get('classifier', model)
+        elif hasattr(model, "named_steps"):
+            base = model.named_steps.get("classifier", model)
         else:
             base = model
 
@@ -76,34 +82,52 @@ def _try_shap_explain(registry, X, pred_class: int, top_n: int) -> dict:
         feature_names = list(X.columns)
         if isinstance(sv, list):
             vals = sv[pred_class][0] if pred_class < len(sv) else sv[0][0]
-        elif hasattr(sv, 'ndim') and sv.ndim == 3:
+        elif hasattr(sv, "ndim") and sv.ndim == 3:
             vals = sv[0, :, pred_class]
         else:
             vals = sv[0]
 
-        contributions = sorted([
-            {
-                "feature": name,
-                "shap_value": float(val),
-                "feature_value": float(X.iloc[0][name]),
-                "direction": "positive" if val > 0 else "negative",
-            }
-            for name, val in zip(feature_names, vals)
-        ], key=lambda x: abs(x["shap_value"]), reverse=True)[:top_n]
+        contributions = sorted(
+            [
+                {
+                    "feature": name,
+                    "shap_value": float(val),
+                    "feature_value": float(X.iloc[0][name]),
+                    "direction": "positive" if val > 0 else "negative",
+                }
+                for name, val in zip(feature_names, vals)
+            ],
+            key=lambda x: abs(x["shap_value"]),
+            reverse=True,
+        )[:top_n]
 
         pos = [c for c in contributions[:5] if c["shap_value"] > 0]
         neg = [c for c in contributions[:5] if c["shap_value"] < 0]
         sev = SEVERITY_LABELS[pred_class]
         text = f"Predicted as **{sev}** severity."
         if pos:
-            text += " Key risk factors: " + ", ".join(
-                f"`{c['feature']}` (+{c['shap_value']:.3f})" for c in pos[:3]) + "."
+            text += (
+                " Key risk factors: "
+                + ", ".join(
+                    f"`{c['feature']}` (+{c['shap_value']:.3f})" for c in pos[:3]
+                )
+                + "."
+            )
         if neg:
-            text += " Mitigating factors: " + ", ".join(
-                f"`{c['feature']}` ({c['shap_value']:.3f})" for c in neg[:3]) + "."
+            text += (
+                " Mitigating factors: "
+                + ", ".join(
+                    f"`{c['feature']}` ({c['shap_value']:.3f})" for c in neg[:3]
+                )
+                + "."
+            )
 
         ev = explainer.expected_value
-        bv = float(ev[pred_class] if isinstance(ev, (list, __import__('numpy').ndarray)) else ev)
+        bv = float(
+            ev[pred_class]
+            if isinstance(ev, (list, __import__("numpy").ndarray))
+            else ev
+        )
 
         return {
             "top_features": contributions,
@@ -114,7 +138,12 @@ def _try_shap_explain(registry, X, pred_class: int, top_n: int) -> dict:
     except Exception:
         return {
             "top_features": [
-                {"feature": k, "shap_value": None, "feature_value": None, "direction": None}
+                {
+                    "feature": k,
+                    "shap_value": None,
+                    "feature_value": None,
+                    "direction": None,
+                }
                 for k in list(X.columns)[:top_n]
             ],
             "base_value": None,

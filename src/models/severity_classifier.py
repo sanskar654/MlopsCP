@@ -29,16 +29,15 @@ from sklearn.metrics import (
 )
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
+from sklearn.ensemble import HistGradientBoostingClassifier
 
 try:
     from xgboost import XGBClassifier
+
     HAS_XGBOOST = True
 except ImportError:
     HAS_XGBOOST = False
     XGBClassifier = None
-
-from features.feature_engineer import ALL_FEATURES, TARGET_COLUMN
 
 logger = logging.getLogger(__name__)
 
@@ -113,11 +112,12 @@ class SeverityClassifier:
         if HAS_XGBOOST:
             base_clf = XGBClassifier(**xgb_params)
         else:
-            logger.info("XGBoost not available; using HistGradientBoostingClassifier fallback")
+            logger.info(
+                "XGBoost not available; using HistGradientBoostingClassifier fallback"
+            )
             base_clf = HistGradientBoostingClassifier(random_state=42)
 
         steps.append(("classifier", base_clf))
-
 
         self.pipeline = Pipeline(steps)
 
@@ -143,7 +143,9 @@ class SeverityClassifier:
             self.build_pipeline()
 
         self.feature_names = list(X_train.columns)
-        logger.info(f"Training on {len(X_train)} samples, {len(self.feature_names)} features")
+        logger.info(
+            f"Training on {len(X_train)} samples, {len(self.feature_names)} features"
+        )
 
         # Fill NaN with medians/zeros for robustness
         X_train = X_train.fillna(0)
@@ -159,7 +161,6 @@ class SeverityClassifier:
             # Only last step's eval_set
             fit_params["classifier__eval_set"] = eval_set
             fit_params["classifier__verbose"] = False
-
 
         self.pipeline.fit(X_train, y_train, **fit_params)
 
@@ -181,7 +182,9 @@ class SeverityClassifier:
                 )
                 self.calibrated_model.fit(X_train, y_train)
         except Exception as e_calib:
-            logger.warning(f"Probability calibration fallback to raw pipeline: {e_calib}")
+            logger.warning(
+                f"Probability calibration fallback to raw pipeline: {e_calib}"
+            )
             self.calibrated_model = self.pipeline
 
         self.is_fitted = True
@@ -202,9 +205,7 @@ class SeverityClassifier:
         X = X.fillna(0)
         return self.calibrated_model.predict_proba(X)
 
-    def predict_with_confidence(
-        self, X: pd.DataFrame
-    ) -> list[dict[str, Any]]:
+    def predict_with_confidence(self, X: pd.DataFrame) -> list[dict[str, Any]]:
         """
         Predict severity with confidence score and class probabilities.
 
@@ -216,15 +217,16 @@ class SeverityClassifier:
         predictions = []
         for row in proba:
             pred_class = int(np.argmax(row))
-            predictions.append({
-                "predicted_class": pred_class,
-                "predicted_label": SEVERITY_LABELS[pred_class],
-                "confidence": float(row[pred_class]),
-                "probabilities": {
-                    SEVERITY_LABELS[i]: float(row[i])
-                    for i in range(N_CLASSES)
-                },
-            })
+            predictions.append(
+                {
+                    "predicted_class": pred_class,
+                    "predicted_label": SEVERITY_LABELS[pred_class],
+                    "confidence": float(row[pred_class]),
+                    "probabilities": {
+                        SEVERITY_LABELS[i]: float(row[i]) for i in range(N_CLASSES)
+                    },
+                }
+            )
         return predictions
 
     def evaluate(
@@ -248,7 +250,8 @@ class SeverityClassifier:
 
         # Critical class (4) recall — critical for quality gate
         report = classification_report(
-            y_test, y_pred,
+            y_test,
+            y_pred,
             labels=list(range(len(SEVERITY_LABELS))),
             target_names=SEVERITY_LABELS,
             output_dict=True,
@@ -260,7 +263,8 @@ class SeverityClassifier:
         # ROC-AUC (one-vs-rest, handles multi-class)
         try:
             roc_auc = roc_auc_score(
-                y_test, y_proba,
+                y_test,
+                y_proba,
                 multi_class="ovr",
                 average="macro",
                 labels=list(range(N_CLASSES)),
@@ -286,8 +290,7 @@ class SeverityClassifier:
             "class_report": report,
             "confusion_matrix": cm.tolist(),
             "class_distribution": {
-                SEVERITY_LABELS[i]: int((y_test == i).sum())
-                for i in range(N_CLASSES)
+                SEVERITY_LABELS[i]: int((y_test == i).sum()) for i in range(N_CLASSES)
             },
         }
 
@@ -331,11 +334,13 @@ class SeverityClassifier:
         try:
             xgb_step = self.pipeline.named_steps["classifier"]
             importance = xgb_step.feature_importances_
-            return dict(sorted(
-                zip(self.feature_names, importance.tolist()),
-                key=lambda x: x[1],
-                reverse=True,
-            ))
+            return dict(
+                sorted(
+                    zip(self.feature_names, importance.tolist()),
+                    key=lambda x: x[1],
+                    reverse=True,
+                )
+            )
         except Exception:
             return {}
 

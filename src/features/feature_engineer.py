@@ -1,36 +1,43 @@
 """
-Feature Engineering Pipeline
-==============================
-Transforms raw vulnerability records into ML-ready features.
+Feature Engineering Pipeline (Leakage-Free & Symptom-Based)
+===========================================================
+Transforms raw vulnerability records into ML-ready features before publication.
 
-Design principles:
-- NO data leakage: base_score and base_severity are NEVER features
-- Temporal features use only data available at time of CVE publication
-- Exploitation signals (KEV, EPSS) are looked up contemporaneously
-- All features are documented and versioned
+Core Principles:
+1. NO CVSS vector submetrics (AV, AC, PR, UI, S, C, I, A). CVSS score is derived
+   directly from those, so using them amounts to copying the formula.
+2. NO post-publication leakage (EPSS score, CISA KEV listing, CVSS base score).
+3. Rich features built strictly from symptoms available at discovery:
+   - TF-IDF n-gram vectorization on description text
+   - Comprehensive security attack keyword flags (RCE, SQLi, Buffer Overflow, etc.)
+   - Description length and word count
+   - CWE category grouping & classification
+   - Vendor / Product recognition
+   - Reference count and reference URL patterns
+   - Publication calendar time (year, quarter)
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import re
 from datetime import datetime, timezone
-from typing import Any
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple
 
+import joblib
 import numpy as np
 import pandas as pd
-
-from .cvss_parser import (
-    cvss_submetrics_to_onehot,
-    parse_cvss_vector,
-    severity_to_numeric,
-)
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 logger = logging.getLogger(__name__)
 
-FEATURE_VERSION = "1.0"
+FEATURE_VERSION = "2.0"
+TFIDF_MAX_FEATURES = 100
+VECTORIZER_PATH = Path("configs/tfidf_vectorizer.joblib")
 
-# ─── Keyword patterns for text features ──────────────────────────────────────
+# ─── Attack Keyword Patterns ─────────────────────────────────────────────────
 KEYWORD_PATTERNS = {
     "has_rce_keyword": re.compile(
         r"\b(remote.?code.?exec|rce|arbitrary.?code|command.?exec|code.?injection)\b",
@@ -45,24 +52,36 @@ KEYWORD_PATTERNS = {
         re.IGNORECASE,
     ),
     "has_overflow_keyword": re.compile(
-        r"\b(buffer.?overflow|stack.?overflow|heap.?overflow|integer.?overflow|memory.?corrupt)\b",
+        r"\b(buffer.?overflow|stack.?overflow|heap.?overflow|integer.?overflow|memory.?corrupt|use.?after.?free|double.?free)\b",
         re.IGNORECASE,
     ),
     "has_auth_bypass_keyword": re.compile(
-        r"\b(auth.?bypass|authentication.?bypass|bypass.?auth|unauthenticated|improper.?auth)\b",
+        r"\b(auth.?bypass|authentication.?bypass|bypass.?auth|unauthenticated|improper.?auth|session.?fixation)\b",
         re.IGNORECASE,
     ),
     "has_priv_esc_keyword": re.compile(
-        r"\b(privilege.?escal|priv.?esc|local.?priv|gain.?privilege|elevat.?privilege)\b",
+        r"\b(privilege.?escal|priv.?esc|local.?priv|gain.?privilege|elevat.?privilege|root.?access)\b",
         re.IGNORECASE,
     ),
     "has_dos_keyword": re.compile(
-        r"\b(denial.?of.?service|dos|infinite.?loop|crash|hung|hang|exhaust)\b",
+        r"\b(denial.?of.?service|dos|infinite.?loop|crash|hung|hang|resource.?exhaust)\b",
+        re.IGNORECASE,
+    ),
+    "has_traversal_keyword": re.compile(
+        r"\b(path.?traversal|directory.?traversal|arbitrary.?file|file.?read)\b",
+        re.IGNORECASE,
+    ),
+    "has_ssrf_keyword": re.compile(
+        r"\b(server.?side.?request.?forgery|ssrf)\b",
+        re.IGNORECASE,
+    ),
+    "has_info_leak_keyword": re.compile(
+        r"\b(information.?disclosure|information.?leak|sensitive.?data|leak.?memory)\b",
         re.IGNORECASE,
     ),
 }
 
-# ─── CWE category groupings ───────────────────────────────────────────────────
+# ─── CWE Category Groupings ──────────────────────────────────────────────────
 MEMORY_SAFETY_CWES = {
     "CWE-119", "CWE-120", "CWE-121", "CWE-122", "CWE-125",
     "CWE-126", "CWE-127", "CWE-415", "CWE-416", "CWE-787",
@@ -85,260 +104,22 @@ CONFIG_CWES = {
     "CWE-250", "CWE-276", "CWE-732", "CWE-749",
 }
 
+CRYPTO_CWES = {
+    "CWE-310", "CWE-311", "CWE-326", "CWE-327", "CWE-330", "CWE-338",
+}
 
-class FeatureEngineer:
-    """
-    Transforms raw vulnerability data into ML feature vectors.
+PRIVILEGE_CWES = {
+    "CWE-264", "CWE-269", "CWE-272", "CWE-274", "CWE-732",
+}
 
-    Usage:
-        fe = FeatureEngineer()
-        df_features = fe.transform(df_raw, kev_cve_ids, epss_scores)
-    """
-
-    def __init__(self, reference_date: datetime | None = None):
-        """
-        Args:
-            reference_date: The "current" date for temporal features.
-                           Defaults to today. OVERRIDE for temporal CV splits
-                           to prevent leakage.
-        """
-        self.reference_date = reference_date or datetime.now(timezone.utc)
-
-    def transform(
-        self,
-        df_raw: pd.DataFrame,
-        kev_cve_ids: set[str] | None = None,
-        epss_scores: dict[str, dict[str, float]] | None = None,
-    ) -> pd.DataFrame:
-        """
-        Transform raw vulnerability DataFrame into feature DataFrame.
-
-        Args:
-            df_raw: DataFrame from raw_vulnerabilities table
-            kev_cve_ids: Set of CVE IDs in CISA KEV catalog
-            epss_scores: Dict {cve_id: {"epss_score": float, "percentile": float}}
-
-        Returns:
-            DataFrame with all engineered features + severity_label + cve_id
-        """
-        kev_cve_ids = kev_cve_ids or set()
-        epss_scores = epss_scores or {}
-
-        records = []
-        for _, row in df_raw.iterrows():
-            try:
-                record = self._engineer_single(
-                    row.to_dict(), kev_cve_ids, epss_scores
-                )
-                if record is not None:
-                    records.append(record)
-            except Exception as e:
-                logger.warning(f"Feature engineering failed for {row.get('cve_id')}: {e}")
-
-        df = pd.DataFrame(records)
-        logger.info(f"Engineered features for {len(df)} vulnerabilities")
-        return df
-
-    def engineer_features(
-        self,
-        df_raw: pd.DataFrame,
-        kev_cve_ids: set[str] | None = None,
-        epss_scores: dict[str, dict[str, float]] | None = None,
-    ) -> pd.DataFrame:
-        """Alias for transform."""
-        return self.transform(df_raw, kev_cve_ids=kev_cve_ids, epss_scores=epss_scores)
-
-    def fit_transform(self, df_raw: pd.DataFrame, y=None) -> pd.DataFrame:
-        """Alias for scikit-learn pipeline compliance, returning pure Stage 1 feature matrix."""
-        df = self.transform(df_raw)
-        cols_to_drop = [c for c in ["in_cisa_kev", "epss_score", "epss_percentile", "cvss_score", "cvss_severity", "severity"] if c in df.columns]
-        return df.drop(columns=cols_to_drop)
-
-
-    def _engineer_single(
-
-        self,
-        row: dict[str, Any],
-        kev_cve_ids: set[str],
-        epss_scores: dict[str, dict[str, float]],
-    ) -> dict[str, Any] | None:
-        """Engineer features for a single CVE record."""
-        cve_id = row.get("cve_id", "")
-        if not cve_id:
-            return None
-
-        features: dict[str, Any] = {"cve_id": cve_id, "feature_version": FEATURE_VERSION}
-
-        # ── CVSS Submetric Features (one-hot) ──────────────────────────────
-        vector_string = row.get("cvss_vector_string")
-        if not vector_string:
-            # Try to reconstruct from stored submetrics
-            vector_string = self._reconstruct_vector(row)
-
-        parsed = parse_cvss_vector(vector_string)
-        onehot = cvss_submetrics_to_onehot(parsed)
-        features.update(onehot)
-
-        # ── Temporal Features ───────────────────────────────────────────────
-        published = self._parse_dt(row.get("published_date"))
-        if published:
-            delta = self.reference_date - published.replace(tzinfo=timezone.utc) \
-                if published.tzinfo is None else self.reference_date - published
-            features["days_since_published"] = max(0, delta.days)
-            features["quarter_published"] = (published.month - 1) // 3 + 1
-            features["year_published"] = published.year
-            features["is_recent"] = delta.days < 90
-        else:
-            features["days_since_published"] = None
-            features["quarter_published"] = None
-            features["year_published"] = None
-            features["is_recent"] = False
-
-        # ── Exploitation Signals ────────────────────────────────────────────
-        in_kev = cve_id in kev_cve_ids
-        features["in_cisa_kev"] = in_kev
-
-        epss = epss_scores.get(cve_id, {})
-        features["epss_score"] = epss.get("epss_score", 0.0)
-        features["epss_percentile"] = epss.get("percentile", 0.0)
-
-        # Check for exploit references in URLs
-        ref_urls = row.get("reference_urls") or []
-        features["has_exploit_reference"] = any(
-            any(kw in url.lower() for kw in
-                ["exploit", "poc", "metasploit", "github.com", "exploit-db"])
-            for url in ref_urls
-        )
-
-        # ── Text / NLP Features ─────────────────────────────────────────────
-        desc = row.get("description") or ""
-        features["description_length"] = len(desc)
-        features["description_word_count"] = len(desc.split())
-
-        for feat_name, pattern in KEYWORD_PATTERNS.items():
-            features[feat_name] = bool(pattern.search(desc))
-
-        # ── CWE Features ────────────────────────────────────────────────────
-        cwe_ids = set(row.get("cwe_ids") or [])
-        features["is_memory_safety_cwe"] = bool(cwe_ids & MEMORY_SAFETY_CWES)
-        features["is_injection_cwe"] = bool(cwe_ids & INJECTION_CWES)
-        features["is_auth_cwe"] = bool(cwe_ids & AUTH_CWES)
-        features["is_config_cwe"] = bool(cwe_ids & CONFIG_CWES)
-
-        # Numeric CWE category from first CWE
-        features["cwe_category_id"] = self._extract_cwe_num(cwe_ids)
-
-        # ── Reference / Metadata Features ───────────────────────────────────
-        features["vendor_count"] = row.get("vendor_count") or 0
-        features["reference_count"] = row.get("reference_count") or 0
-        ref_urls_lower = [u.lower() for u in ref_urls]
-        features["has_patch_reference"] = any(
-            any(kw in u for kw in ["patch", "advisory", "update", "fix", "security"])
-            for u in ref_urls_lower
-        )
-
-        # ── Target Label (NOT a feature — stored alongside for training) ─────
-        severity = row.get("base_severity")
-        if not severity and row.get("base_score"):
-            severity = self._score_to_severity(float(row["base_score"]))
-        features["severity_label"] = (severity or "").upper() or None
-        features["severity_numeric"] = severity_to_numeric(features["severity_label"])
-
-        return features
-
-    def _reconstruct_vector(self, row: dict) -> str | None:
-        """Try to reconstruct CVSS vector from stored submetric columns."""
-        # Reverse map for reconstruction
-        av_map = {"NETWORK": "N", "ADJACENT": "A", "LOCAL": "L", "PHYSICAL": "P"}
-        ac_map = {"LOW": "L", "HIGH": "H"}
-        pr_map = {"NONE": "N", "LOW": "L", "HIGH": "H"}
-        ui_map = {"NONE": "N", "REQUIRED": "R"}
-        s_map = {"UNCHANGED": "U", "CHANGED": "C"}
-        i_map = {"NONE": "N", "LOW": "L", "HIGH": "H"}
-
-        try:
-            av = av_map.get(str(row.get("attack_vector", "")), "")
-            ac = ac_map.get(str(row.get("attack_complexity", "")), "")
-            pr = pr_map.get(str(row.get("privileges_required", "")), "")
-            ui = ui_map.get(str(row.get("user_interaction", "")), "")
-            s = s_map.get(str(row.get("scope", "")), "")
-            c = i_map.get(str(row.get("confidentiality_impact", "")), "")
-            i = i_map.get(str(row.get("integrity_impact", "")), "")
-            a = i_map.get(str(row.get("availability_impact", "")), "")
-
-            if all([av, ac, pr, ui, s, c, i, a]):
-                v = row.get("cvss_version", "3.1") or "3.1"
-                return f"CVSS:{v}/AV:{av}/AC:{ac}/PR:{pr}/UI:{ui}/S:{s}/C:{c}/I:{i}/A:{a}"
-        except Exception:
-            pass
-        return None
-
-    def _parse_dt(self, dt_val: Any) -> datetime | None:
-        if isinstance(dt_val, datetime):
-            return dt_val
-        if isinstance(dt_val, str) and dt_val:
-            try:
-                # NVD format: "2023-11-14T16:15:27.780"
-                dt_val = dt_val.split(".")[0].replace("Z", "")
-                return datetime.fromisoformat(dt_val)
-            except ValueError:
-                pass
-        return None
-
-    def _extract_cwe_num(self, cwe_ids: set[str]) -> int | None:
-        for cwe in cwe_ids:
-            try:
-                return int(cwe.replace("CWE-", ""))
-            except ValueError:
-                continue
-        return None
-
-    @staticmethod
-    def _score_to_severity(score: float) -> str:
-        """Convert CVSS base score to severity label (CVSS v3 thresholds)."""
-        if score == 0.0:
-            return "NONE"
-        elif score < 4.0:
-            return "LOW"
-        elif score < 7.0:
-            return "MEDIUM"
-        elif score < 9.0:
-            return "HIGH"
-        else:
-            return "CRITICAL"
-
-
-# ─── Feature column lists for ML pipeline ────────────────────────────────────
-CVSS_BINARY_FEATURES = [
-    "av_network", "av_adjacent", "av_local", "av_physical",
-    "ac_low", "ac_high",
-    "pr_none", "pr_low", "pr_high",
-    "ui_none", "ui_required",
-    "scope_changed",
-    "ci_none", "ci_low", "ci_high",
-    "ii_none", "ii_low", "ii_high",
-    "ai_none", "ai_low", "ai_high",
-    "has_cvss_v3",
+# ─── Major Enterprise Vendors ────────────────────────────────────────────────
+TOP_VENDORS = [
+    "microsoft", "apple", "google", "cisco", "linux", "oracle",
+    "apache", "adobe", "ibm", "vmware", "redhat", "mozilla",
 ]
 
-TEMPORAL_FEATURES = [
-    "days_since_published",
-    "quarter_published",
-    "year_published",
-    "is_recent",
-]
-
-EXPLOITATION_FEATURES = [
-    "has_exploit_reference",
-]
-
-POST_PUB_THREAT_FEATURES = [
-    "in_cisa_kev",
-    "epss_score",
-    "epss_percentile",
-]
-
-TEXT_FEATURES = [
+# ─── Pre-computed Non-Text Features ──────────────────────────────────────────
+TEXT_METRIC_FEATURES = [
     "description_length",
     "description_word_count",
     "has_rce_keyword",
@@ -348,6 +129,9 @@ TEXT_FEATURES = [
     "has_auth_bypass_keyword",
     "has_priv_esc_keyword",
     "has_dos_keyword",
+    "has_traversal_keyword",
+    "has_ssrf_keyword",
+    "has_info_leak_keyword",
 ]
 
 CWE_FEATURES = [
@@ -355,29 +139,273 @@ CWE_FEATURES = [
     "is_injection_cwe",
     "is_auth_cwe",
     "is_config_cwe",
+    "is_crypto_cwe",
+    "is_privilege_cwe",
     "cwe_category_id",
 ]
 
-METADATA_FEATURES = [
-    "vendor_count",
+VENDOR_FEATURES = [f"vendor_{v}" for v in TOP_VENDORS] + ["vendor_other", "vendor_count"]
+
+REFERENCE_FEATURES = [
     "reference_count",
     "has_patch_reference",
+    "has_exploit_reference",
 ]
 
-STAGE1_FEATURES = (
-    CVSS_BINARY_FEATURES
-    + TEMPORAL_FEATURES
-    + EXPLOITATION_FEATURES
-    + TEXT_FEATURES
+TEMPORAL_FEATURES = [
+    "year_published",
+    "quarter_published",
+    "days_since_published",
+    "is_recent",
+]
+
+TABULAR_FEATURES = (
+    TEXT_METRIC_FEATURES
     + CWE_FEATURES
-    + METADATA_FEATURES
+    + VENDOR_FEATURES
+    + REFERENCE_FEATURES
+    + TEMPORAL_FEATURES
 )
 
-ALL_FEATURES = STAGE1_FEATURES
+# TFIDF features named tfidf_0 .. tfidf_99
+TFIDF_FEATURE_NAMES = [f"tfidf_{i}" for i in range(TFIDF_MAX_FEATURES)]
+
+# ALL_FEATURES strictly excludes any CVSS submetrics or post-pub signals
+ALL_FEATURES = TABULAR_FEATURES + TFIDF_FEATURE_NAMES
+
+SEVERITY_MAP = {
+    "LOW": 0,
+    "MEDIUM": 1,
+    "HIGH": 2,
+    "CRITICAL": 3,
+}
+
+REVERSE_SEVERITY_MAP = {v: k for k, v in SEVERITY_MAP.items()}
+
+
+class FeatureEngineer:
+    """
+    Leakage-free Feature Engineering Pipeline.
+    Fits TF-IDF vectorizer on training text and transforms vulnerability records
+    into clean, symptom-based numeric matrices.
+    """
+
+    def __init__(self, reference_date: Optional[datetime] = None):
+        self.reference_date = reference_date or datetime.now(timezone.utc)
+        self.vectorizer: Optional[TfidfVectorizer] = None
+        self._load_vectorizer_if_available()
+
+    def _load_vectorizer_if_available(self) -> None:
+        if VECTORIZER_PATH.exists():
+            try:
+                self.vectorizer = joblib.load(VECTORIZER_PATH)
+                logger.info("Loaded fitted TF-IDF vectorizer from %s", VECTORIZER_PATH)
+            except Exception as e:
+                logger.debug("Could not load vectorizer: %s", e)
+
+    def fit(self, df_raw: pd.DataFrame) -> "FeatureEngineer":
+        """Fit the TF-IDF vectorizer on descriptions."""
+        texts = df_raw.get("description", pd.Series(dtype=str)).fillna("").astype(str).tolist()
+        self.vectorizer = TfidfVectorizer(
+            max_features=TFIDF_MAX_FEATURES,
+            ngram_range=(1, 2),
+            stop_words="english",
+            lowercase=True,
+        )
+        self.vectorizer.fit(texts)
+        VECTORIZER_PATH.parent.mkdir(parents=True, exist_ok=True)
+        joblib.dump(self.vectorizer, VECTORIZER_PATH)
+        logger.info("Fitted and saved TF-IDF vectorizer with %d features", TFIDF_MAX_FEATURES)
+        return self
+
+    def transform(
+        self,
+        df_raw: pd.DataFrame,
+        kev_cve_ids: Optional[Set[str]] = None,
+        epss_scores: Optional[Dict[str, Dict[str, float]]] = None,
+    ) -> pd.DataFrame:
+        """
+        Transform raw vulnerability records into feature matrix.
+        Post-publication parameters (kev_cve_ids, epss_scores) are accepted for backwards compatibility
+        and stored in separate metadata columns, NEVER in feature matrix X.
+        """
+        if self.vectorizer is None:
+            self.fit(df_raw)
+
+        records: List[Dict[str, Any]] = []
+        descriptions: List[str] = []
+
+        for _, row in df_raw.iterrows():
+            rec = self._engineer_tabular_features(row.to_dict())
+            if rec is not None:
+                records.append(rec)
+                descriptions.append(str(row.get("description") or ""))
+
+        df_tabular = pd.DataFrame(records)
+        if df_tabular.empty:
+            return pd.DataFrame(columns=["cve_id"] + ALL_FEATURES)
+
+        # Extract TF-IDF features
+        if self.vectorizer is not None and descriptions:
+            tfidf_mat = self.vectorizer.transform(descriptions).toarray()
+            # If fitted vocabulary is smaller than max features, pad
+            if tfidf_mat.shape[1] < TFIDF_MAX_FEATURES:
+                padding = np.zeros((tfidf_mat.shape[0], TFIDF_MAX_FEATURES - tfidf_mat.shape[1]))
+                tfidf_mat = np.hstack([tfidf_mat, padding])
+            tfidf_df = pd.DataFrame(tfidf_mat[:, :TFIDF_MAX_FEATURES], columns=TFIDF_FEATURE_NAMES)
+        else:
+            tfidf_df = pd.DataFrame(0.0, index=df_tabular.index, columns=TFIDF_FEATURE_NAMES)
+
+        df_features = pd.concat([df_tabular, tfidf_df], axis=1)
+
+        # Ensure all columns present
+        for col in ALL_FEATURES:
+            if col not in df_features.columns:
+                df_features[col] = 0
+
+        logger.info("Engineered %d features for %d records (Leakage-free v2.0)", len(ALL_FEATURES), len(df_features))
+        return df_features
+
+    def fit_transform(self, df_raw: pd.DataFrame, y=None) -> pd.DataFrame:
+        """Fit vectorizer on data and return feature matrix X (scikit-learn compatible)."""
+        self.fit(df_raw)
+        df = self.transform(df_raw)
+        # Drop metadata and target columns to return pure X
+        cols_to_drop = [
+            c for c in [
+                "cve_id", "severity_label", "severity_numeric", "base_severity",
+                "base_score", "cvss_score", "cvss_severity", "epss_score",
+                "epss_percentile", "in_cisa_kev", "feature_version"
+            ] if c in df.columns
+        ]
+        return df.drop(columns=cols_to_drop)
+
+    def engineer_features(self, df_raw: pd.DataFrame, **kwargs) -> pd.DataFrame:
+        """Alias for transform."""
+        return self.transform(df_raw)
+
+    def _engineer_tabular_features(self, row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        cve_id = row.get("cve_id") or ""
+        if not cve_id:
+            return None
+
+        features: Dict[str, Any] = {"cve_id": cve_id, "feature_version": FEATURE_VERSION}
+
+        # ─── Text / NLP Metrics ──────────────────────────────────────────────
+        desc = str(row.get("description") or "")
+        features["description_length"] = len(desc)
+        features["description_word_count"] = len(desc.split())
+
+        for feat_name, pattern in KEYWORD_PATTERNS.items():
+            features[feat_name] = int(bool(pattern.search(desc)))
+
+        # ─── CWE Features ────────────────────────────────────────────────────
+        cwe_raw = row.get("cwe_ids") or row.get("cwe") or []
+        if isinstance(cwe_raw, str):
+            cwe_list = re.findall(r"CWE-\d+", cwe_raw.upper())
+        elif isinstance(cwe_raw, (list, set)):
+            cwe_list = [str(c).upper() for c in cwe_raw if "CWE" in str(c).upper()]
+        else:
+            cwe_list = []
+
+        cwe_set = set(cwe_list)
+        features["is_memory_safety_cwe"] = int(bool(cwe_set & MEMORY_SAFETY_CWES))
+        features["is_injection_cwe"] = int(bool(cwe_set & INJECTION_CWES))
+        features["is_auth_cwe"] = int(bool(cwe_set & AUTH_CWES))
+        features["is_config_cwe"] = int(bool(cwe_set & CONFIG_CWES))
+        features["is_crypto_cwe"] = int(bool(cwe_set & CRYPTO_CWES))
+        features["is_privilege_cwe"] = int(bool(cwe_set & PRIVILEGE_CWES))
+
+        # First CWE ID as numeric integer
+        cwe_num = 0
+        for cwe in cwe_set:
+            digits = re.findall(r"\d+", cwe)
+            if digits:
+                cwe_num = int(digits[0])
+                break
+        features["cwe_category_id"] = cwe_num
+
+        # ─── Vendor / Product Recognition ────────────────────────────────────
+        vendor_text = (
+            str(row.get("vendor") or "") + " " +
+            str(row.get("product") or "") + " " +
+            str(row.get("cpe_list") or "") + " " +
+            desc
+        ).lower()
+
+        matched_any_vendor = False
+        for vendor in TOP_VENDORS:
+            is_match = int(vendor in vendor_text)
+            features[f"vendor_{vendor}"] = is_match
+            if is_match:
+                matched_any_vendor = True
+
+        features["vendor_other"] = 0 if matched_any_vendor else 1
+        features["vendor_count"] = int(row.get("vendor_count") or (1 if matched_any_vendor else 0))
+
+        # ─── Reference Features ──────────────────────────────────────────────
+        ref_urls = row.get("reference_urls") or []
+        if isinstance(ref_urls, str):
+            ref_urls = [ref_urls]
+        ref_text = " ".join([str(u).lower() for u in ref_urls])
+
+        features["reference_count"] = int(row.get("reference_count") or len(ref_urls))
+        features["has_patch_reference"] = int(any(k in ref_text for k in ["patch", "advisory", "commit", "update", "fix", "security"]))
+        features["has_exploit_reference"] = int(any(k in ref_text for k in ["exploit", "poc", "metasploit", "exploit-db", "packetstorm"]))
+
+        # ─── Temporal Features ───────────────────────────────────────────────
+        published = self._parse_dt(row.get("published_date"))
+        if published:
+            delta = self.reference_date - published.replace(tzinfo=timezone.utc) \
+                if published.tzinfo is None else self.reference_date - published
+            features["days_since_published"] = max(0, delta.days)
+            features["quarter_published"] = (published.month - 1) // 3 + 1
+            features["year_published"] = published.year
+            features["is_recent"] = int(delta.days < 90)
+        else:
+            features["days_since_published"] = 0
+            features["quarter_published"] = 1
+            features["year_published"] = 2024
+            features["is_recent"] = 0
+
+        # ─── Target Severity Label ───────────────────────────────────────────
+        raw_sev = str(row.get("base_severity") or row.get("cvss_severity") or "").upper().strip()
+        if not raw_sev and row.get("base_score") is not None:
+            try:
+                score = float(row["base_score"])
+                if score >= 9.0:
+                    raw_sev = "CRITICAL"
+                elif score >= 7.0:
+                    raw_sev = "HIGH"
+                elif score >= 4.0:
+                    raw_sev = "MEDIUM"
+                else:
+                    raw_sev = "LOW"
+            except (ValueError, TypeError):
+                pass
+
+        if raw_sev in SEVERITY_MAP:
+            features["severity_label"] = raw_sev
+            features["severity_numeric"] = SEVERITY_MAP[raw_sev]
+        else:
+            features["severity_label"] = None
+            features["severity_numeric"] = -1
+
+        return features
+
+    @staticmethod
+    def _parse_dt(dt_val: Any) -> Optional[datetime]:
+        if not dt_val:
+            return None
+        if isinstance(dt_val, datetime):
+            return dt_val
+        try:
+            val_str = str(dt_val).split(".")[0].replace("Z", "")
+            return datetime.fromisoformat(val_str)
+        except Exception:
+            return None
+
 
 TARGET_COLUMN = "severity_numeric"
 TARGET_LABEL_COLUMN = "severity_label"
-
-# Module level alias for compatibility
 FeaturePipeline = FeatureEngineer
-

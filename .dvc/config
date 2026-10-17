@@ -1,0 +1,6 @@
+[core]
+    remote = storage
+['remote "storage"']
+    url = s3://vulnerability-mlops-dvc-artifacts/data-registry
+['remote "gdrive_backup"']
+    url = gdrive://1BxiMVs0XRA5nFMdKvBHK_rDC58W50v8i/mlops-data

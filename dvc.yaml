@@ -1,0 +1,48 @@
+stages:
+  ingest:
+    cmd: python -c "from src.ingestion.backfill import fetch_and_merge_real_data; fetch_and_merge_real_data(nvd_sample_size=50)"
+    deps:
+      - src/ingestion/nvd_client.py
+      - src/ingestion/cisa_kev_client.py
+    outs:
+      - data/processed/real_cve_dataset.parquet
+
+  validate:
+    cmd: python -c "import pandas as pd; from src.validation.schema_validator import VulnerabilitySchemaValidator; df = pd.read_csv('data/raw/nvd_cves_recent.csv'); clean_df, _ = VulnerabilitySchemaValidator().validate_raw(df.dropna(subset=['description', 'base_severity'])); clean_df.to_parquet('data/interim/validated_data.parquet', index=False)"
+    deps:
+      - data/raw/nvd_cves_recent.csv
+      - src/validation/schema_validator.py
+    outs:
+      - data/interim/validated_data.parquet
+
+  features:
+    cmd: python -c "import pandas as pd; from src.features.feature_engineer import FeatureEngineer; df = pd.read_parquet('data/interim/validated_data.parquet'); fe = FeatureEngineer(); fe.fit(df); feat = fe.transform(df); feat.to_parquet('data/processed/features.parquet', index=False)"
+    deps:
+      - data/interim/validated_data.parquet
+      - src/features/feature_engineer.py
+    outs:
+      - data/processed/features.parquet
+
+  train:
+    cmd: python -c "from src.training.trainer import VulnerabilityTrainer; t = VulnerabilityTrainer(); t.train_and_evaluate(data_path='data/processed/features.parquet')"
+    deps:
+      - data/processed/features.parquet
+      - src/training/trainer.py
+      - src/models/severity_classifier.py
+    outs:
+      - configs/tfidf_vectorizer.joblib
+
+  evaluate:
+    cmd: python scripts/run_pipeline.py
+    deps:
+      - data/processed/features.parquet
+      - scripts/run_pipeline.py
+      - src/models/baseline_comparator.py
+      - src/models/kev_predictor.py
+    metrics:
+      - data/monitoring/baseline_comparison_results.csv:
+          cache: false
+      - data/monitoring/imbalance_strategy_comparison.csv:
+          cache: false
+      - data/monitoring/risk_weights_justification.json:
+          cache: false

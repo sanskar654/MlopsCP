@@ -6,3 +6,13 @@ __pycache__/
 .DS_Store
 prom-demo/prometheus-*/
 *.exe
+
+# Large Data & Artifacts managed by DVC
+*.parquet
+data/raw/*.csv
+data/raw/*.parquet
+data/processed/*.csv
+data/processed/*.parquet
+data/interim/*.parquet
+mlflow.db
+.dvc/cache

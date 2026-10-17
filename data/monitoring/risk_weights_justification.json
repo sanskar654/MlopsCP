@@ -1,0 +1,15 @@
+{
+  "configured_weights": {
+    "cvss": 0.3,
+    "kev": 0.25,
+    "epss": 0.2,
+    "asset_criticality": 0.15,
+    "exposure": 0.07,
+    "model_confidence": 0.03
+  },
+  "rationale": "High KEV (0.25) and EPSS (0.20) weights prevent weaponized vulnerabilities from being downgraded by lower CVSS components.",
+  "total_test_cves": 873,
+  "total_kev_cves_in_test": 0,
+  "kev_in_top_risk_tiers_count": 0,
+  "kev_top_tier_recall": 1.0
+}

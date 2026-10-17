@@ -1,0 +1,42 @@
+groups:
+  - name: vulnerability_mlops_alerts
+    rules:
+      - alert: HighInferenceLatencyP95
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 0.500
+        for: 2m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "Inference Latency P95 exceeded 500ms SLA"
+          description: "API p95 response time has been above 500ms for more than 2 minutes."
+
+      - alert: SignificantDataDriftDetected
+        expr: model_drift_share > 0.25
+        for: 5m
+        labels:
+          severity: critical
+          component: monitoring
+        annotations:
+          summary: "Production feature / text embedding drift detected"
+          description: "Drift share exceeds 25% threshold, triggering automated retraining DAG."
+
+      - alert: LowLiveMacroF1Accuracy
+        expr: model_live_macro_f1 < 0.70
+        for: 10m
+        labels:
+          severity: critical
+          component: model
+        annotations:
+          summary: "Live model accuracy dropped below 0.70 Macro F1"
+          description: "Model accuracy against late official NVD ground truth has degraded."
+
+      - alert: HighApiErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "FastAPI server error rate exceeds 5%"
+          description: "5xx HTTP error responses exceed 5% of all traffic."

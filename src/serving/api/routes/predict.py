@@ -1,124 +1,116 @@
 """
 Prediction Route
 ================
-POST /api/v1/predict  — Severity prediction with calibrated confidence.
+POST /api/v1/predict — Symptom-based severity prediction with calibrated confidence.
+Logs every request and prediction to `predictions_log` table in PostgreSQL.
 """
 
 from __future__ import annotations
 
+import logging
 import uuid
-from typing import Any
+from typing import Any, Dict
 
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Request
-import logging
 
 try:
     from loguru import logger
 except ImportError:
     logger = logging.getLogger("serving.api.predict")
 
-from src.features.cvss_parser import parse_cvss_vector, cvss_submetrics_to_onehot
-from src.features.feature_engineer import ALL_FEATURES
+from src.features.feature_engineer import (
+    ALL_FEATURES,
+    FeatureEngineer,
+)
+from src.serving.api.db import log_prediction_to_db
 from src.serving.api.schemas import PredictRequest, PredictResponse
 
 router = APIRouter()
 
-SEVERITY_LABELS = ["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+SEVERITY_LABELS = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+_engineer = FeatureEngineer()
 
 
 def _build_feature_row(req: PredictRequest) -> pd.DataFrame:
-    """Convert API request to a feature vector DataFrame."""
-    features: dict[str, Any] = {f: 0 for f in ALL_FEATURES}
-
-    # CVSS submetric one-hot
-    parsed = parse_cvss_vector(req.cvss_vector_string)
-    onehot = cvss_submetrics_to_onehot(parsed)
-    features.update(onehot)
-
-    # Exploitation signals
-    features["in_cisa_kev"] = int(req.in_cisa_kev)
-    features["epss_score"] = req.epss_score
-    features["epss_percentile"] = req.epss_percentile
-
-    # Temporal
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc)
-    if req.year_published:
-        features["year_published"] = req.year_published
-        features["days_since_published"] = (now.year - req.year_published) * 365
-        features["quarter_published"] = 1
-        features["is_recent"] = int(features["days_since_published"] < 90)
-
-    # Text features from description
-    if req.description:
-        import re
-        desc = req.description
-        features["description_length"] = len(desc)
-        features["description_word_count"] = len(desc.split())
-        features["has_rce_keyword"] = int(bool(re.search(
-            r"\b(remote.?code.?exec|rce|arbitrary.?code)\b", desc, re.I)))
-        features["has_sqli_keyword"] = int(bool(re.search(
-            r"\b(sql.?inject|sqli)\b", desc, re.I)))
-        features["has_xss_keyword"] = int(bool(re.search(
-            r"\b(cross.?site.?script|xss)\b", desc, re.I)))
-        features["has_overflow_keyword"] = int(bool(re.search(
-            r"\b(buffer.?overflow|stack.?overflow|memory.?corrupt)\b", desc, re.I)))
-        features["has_auth_bypass_keyword"] = int(bool(re.search(
-            r"\b(auth.?bypass|unauthenticated)\b", desc, re.I)))
-        features["has_priv_esc_keyword"] = int(bool(re.search(
-            r"\b(privilege.?escal|priv.?esc)\b", desc, re.I)))
-        features["has_dos_keyword"] = int(bool(re.search(
-            r"\b(denial.?of.?service|dos|crash)\b", desc, re.I)))
-
-    # CWE features
-    from features.feature_engineer import (
-        MEMORY_SAFETY_CWES, INJECTION_CWES, AUTH_CWES, CONFIG_CWES
-    )
-    cwe_set = set(req.cwe_ids)
-    features["is_memory_safety_cwe"] = int(bool(cwe_set & MEMORY_SAFETY_CWES))
-    features["is_injection_cwe"] = int(bool(cwe_set & INJECTION_CWES))
-    features["is_auth_cwe"] = int(bool(cwe_set & AUTH_CWES))
-    features["is_config_cwe"] = int(bool(cwe_set & CONFIG_CWES))
-
-    # Metadata
-    features["reference_count"] = req.reference_count
-    features["vendor_count"] = req.vendor_count
-
-    # Ensure all feature columns exist and are in correct order
-    row_data = {col: features.get(col, 0) for col in ALL_FEATURES}
-    return pd.DataFrame([row_data])
+    """
+    Build symptom-based feature vector DataFrame from request.
+    Strictly NO CVSS vector submetrics (AV, AC, PR, UI, S, C, I, A).
+    Strictly NO post-publication signals (EPSS, KEV, CVSS score).
+    """
+    raw_dict = {
+        "cve_id": req.cve_id,
+        "description": req.description or "",
+        "cwe_ids": req.cwe_ids,
+        "vendor_count": req.vendor_count,
+        "reference_count": req.reference_count,
+        "year_published": req.year_published or 2024,
+    }
+    df_raw = pd.DataFrame([raw_dict])
+    df_features = _engineer.transform(df_raw)
+    cols_to_use = [c for c in ALL_FEATURES if c in df_features.columns]
+    return df_features[cols_to_use].fillna(0)
 
 
 @router.post("/predict", response_model=PredictResponse)
 async def predict_severity(req: PredictRequest, request: Request):
     """
-    Predict vulnerability severity with calibrated confidence scores.
+    Predict vulnerability severity strictly from pre-publication symptoms:
+    description text (TF-IDF & security keywords), CWE category, vendor/product,
+    and reference metadata.
 
-    Returns predicted severity label (NONE/LOW/MEDIUM/HIGH/CRITICAL),
-    class probabilities, and model confidence.
+    Logs inference event to `predictions_log` in PostgreSQL.
     """
     registry = request.app.state.model_registry
 
     try:
         X = _build_feature_row(req)
-        if registry.champion_loaded:
-            proba = registry.predict(X)  # shape [1, 5]
+        model_version = registry.champion_version if registry else "v2.0-baseline"
+
+        if registry and registry.champion_loaded:
+            proba = registry.predict(X)  # shape [1, N_CLASSES]
         else:
-            # Heuristic CVSS fallback for cold start / offline demo
-            if req.in_cisa_kev or req.epss_score > 0.8:
-                proba = np.array([[0.01, 0.02, 0.07, 0.20, 0.70]])
-            elif req.epss_score > 0.4:
-                proba = np.array([[0.02, 0.08, 0.20, 0.60, 0.10]])
+            # Heuristic symptom-based fallback for cold start / offline demo
+            desc_lower = (req.description or "").lower()
+            if any(k in desc_lower for k in ["remote code", "rce", "arbitrary code", "buffer overflow"]):
+                proba = np.array([[0.02, 0.08, 0.25, 0.65]])
+            elif any(k in desc_lower for k in ["sql inject", "privilege escal", "unauthenticated"]):
+                proba = np.array([[0.05, 0.15, 0.65, 0.15]])
+            elif any(k in desc_lower for k in ["cross-site script", "xss", "traversal"]):
+                proba = np.array([[0.10, 0.65, 0.20, 0.05]])
             else:
-                proba = np.array([[0.05, 0.25, 0.50, 0.15, 0.05]])
+                proba = np.array([[0.40, 0.40, 0.15, 0.05]])
 
         pred_class = int(np.argmax(proba[0]))
+        num_classes = proba.shape[1]
+        labels = SEVERITY_LABELS if num_classes == 4 else ["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+        pred_label = labels[pred_class] if pred_class < len(labels) else "HIGH"
         confidence = float(proba[0][pred_class])
 
-        # Shadow mode: log challenger prediction asynchronously
-        if registry.challenger_loaded:
+        probabilities = {
+            labels[i]: round(float(proba[0][i]), 4)
+            for i in range(min(num_classes, len(labels)))
+        }
+
+        # ─── Log Prediction to PostgreSQL (MLOps Requirement 1) ─────────────────
+        features_snapshot = {
+            "description_length": len(req.description or ""),
+            "cwe_ids": req.cwe_ids,
+            "vendor_count": req.vendor_count,
+            "reference_count": req.reference_count,
+            "year_published": req.year_published,
+        }
+        log_prediction_to_db(
+            cve_id=req.cve_id,
+            model_version=model_version,
+            prediction=pred_label,
+            confidence=confidence,
+            features_snapshot=features_snapshot,
+        )
+
+        # Shadow mode: evaluate challenger if active
+        if registry and registry.challenger_loaded:
             try:
                 challenger_proba = registry.predict_challenger(X)
                 if challenger_proba is not None:
@@ -126,22 +118,18 @@ async def predict_severity(req: PredictRequest, request: Request):
                     if challenger_class != pred_class:
                         logger.debug(
                             f"Shadow disagreement on {req.cve_id}: "
-                            f"champion={SEVERITY_LABELS[pred_class]}, "
-                            f"challenger={SEVERITY_LABELS[challenger_class]}"
+                            f"champion={pred_label}, challenger={labels[challenger_class]}"
                         )
             except Exception:
                 pass
 
         return PredictResponse(
             cve_id=req.cve_id,
-            predicted_severity=SEVERITY_LABELS[pred_class],
+            predicted_severity=pred_label,
             predicted_class=pred_class,
             confidence=round(confidence, 4),
-            probabilities={
-                SEVERITY_LABELS[i]: round(float(proba[0][i]), 4)
-                for i in range(5)
-            },
-            model_version=registry.champion_version,
+            probabilities=probabilities,
+            model_version=model_version,
             prediction_id=str(uuid.uuid4()),
         )
 

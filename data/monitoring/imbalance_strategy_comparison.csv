@@ -1,0 +1,3 @@
+Strategy,Macro F1,Critical Recall,Rationale
+Unweighted Baseline,0.4137,0.1316,Standard empirical loss without imbalance compensation
+Class Weights (Recommended),0.2648,0.0988,Multiplies loss penalty on minority mistakes without distorting sparse feature vectors

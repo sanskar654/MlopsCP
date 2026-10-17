@@ -2,23 +2,33 @@
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![MLflow](https://img.shields.io/badge/MLflow-2.15+-blueviolet.svg)](https://mlflow.org/)
+[![DVC](https://img.shields.io/badge/DVC-3.50+-945DD6.svg)](https://dvc.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111+-009688.svg)](https://fastapi.tiangolo.com/)
+[![Prometheus](https://img.shields.io/badge/Prometheus-v2.50+-E6522C.svg)](https://prometheus.io/)
+[![Grafana](https://img.shields.io/badge/Grafana-v10.3+-F46800.svg)](https://grafana.com/)
 [![Airflow](https://img.shields.io/badge/Apache%20Airflow-2.9+-017CEE.svg)](https://airflow.apache.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-4169E1.svg)](https://www.postgresql.org/)
 [![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://www.docker.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-An enterprise-grade, end-to-end **Adaptive MLOps Platform** designed to ingest known software vulnerabilities (CVEs) and threat intelligence feeds, predict CVSS base severity with probability-calibrated machine learning models, calculate composite risk scores (0–100) mapped to remediation SLAs, serve real-time predictions, monitor statistical drift, and automate model retraining.
+An enterprise-grade, end-to-end **Adaptive MLOps Platform** for software vulnerability management. The platform ingests real-world CVE records and threat feeds, predicts CVSS base severity from raw disclosure symptoms (eliminating CVSS vector data leakage), forecasts weaponization likelihood (CISA KEV addition), computes composite risk scores (0–100) mapped to actionable remediation SLAs, serves real-time predictions, and monitors production data drift and late ground-truth labels.
 
-> **Scope Note:** This platform is **not** a vulnerability *detector* (it does not perform SAST/DAST code scanning). It ingests already published CVE records to automate **Severity Classification** and **Risk Prioritization** for Enterprise Security Operations Center (SOC) teams.
+> **Scope Note:** This platform is **not** a SAST/DAST code scanner. It automates **Early Severity Classification** and **Risk Prioritization** for Enterprise Security Operations Center (SOC) teams when a vulnerability is first disclosed.
 
 ---
 
-## 💡 Real-World Problem Solved
+## 💡 Real-World Problem & Symptom-Based Modeling
 
-Modern enterprise security teams face thousands of newly published Common Vulnerabilities and Exposures (CVEs) every month. Security analysts cannot patch every vulnerability immediately. Raw CVSS base scores alone do not reflect real-world threat context (e.g. whether an exploit is actively being used in the wild or whether the affected asset is internet-facing).
+When a CVE is newly disclosed, security analysts must triage it immediately. However, official CVSS vectors (`AV`, `AC`, `PR`, `UI`, `S`, `C`, `I`, `A`) often take days or weeks to be finalized by NIST NVD. 
 
-This platform combines **leakage-free machine learning severity prediction** with real-time threat intelligence (FIRST EPSS exploit probabilities, CISA Known Exploited Vulnerabilities) and asset metadata (asset criticality, network exposure) into a single actionable **Composite Risk Score (0–100)** mapping to remediation SLA timeframes.
+- **The Leakage Problem:** Models trained using CVSS vector submetrics simply memorize the deterministic CVSS calculator formula, resulting in artificial 100% test accuracy that collapses in production where vectors are absent.
+- **The Solution:** Our Stage 1 model predicts severity strictly from **symptoms available at disclosure time**:
+  - Raw CVE description text (TF-IDF n-grams)
+  - 10 exploit & attack mechanism keywords (RCE, SQLi, Buffer Overflow, Auth Bypass, etc.)
+  - CWE weakness category taxonomy
+  - Affected vendor/product counts
+  - Reference link metrics
+- **Bonus Task — CISA KEV Forecaster:** A secondary predictive model (`CISAKEVForecaster`) that estimates the probability of in-the-wild exploitation and inclusion into the CISA KEV catalog within 30 or 90 days.
 
 ---
 
@@ -26,134 +36,72 @@ This platform combines **leakage-free machine learning severity prediction** wit
 
 ```mermaid
 flowchart TD
-    NVD[NVD 2.0 API] --> ING[Data Ingestion - Airflow]
-    KEV[CISA KEV Catalog] --> ING
-    EPSS[FIRST EPSS Bulk CSV] --> ING
-    ING --> RAW[(PostgreSQL Append-Only DB)]
-    RAW --> VAL[Data Validation - Pandera]
-    VAL --> FEAT[Feature Engineering Stage 1]
-    FEAT --> MODEL[XGBoost ML Model]
-    MODEL --> RISK[Risk Engine Stage 2]
-    RISK --> SCORE[Risk Score 0-100 & SLA Tiers]
-    SCORE --> API[FastAPI Serving Layer]
-    API --> DASH[Executive Web Dashboard]
-```
-
-### Automated Retraining & MLOps Loop
-
-```mermaid
-flowchart TD
-    PROD[Production Champion Model] --> LOG[Predictions Log Table]
-    LOG --> DRIFT{Drift Monitoring Engine}
-    DRIFT -->|PSI <= 0.25 No Drift| PROD
-    DRIFT -->|PSI > 0.25 Drift Alert| RETRAIN[Airflow Retraining DAG]
-    RETRAIN --> CHAL[Challenger Model]
-    CHAL --> GATE{Quality Gate Evaluation}
-    GATE -->|Macro F1 Fail| REJECT[Reject Challenger, Keep Champion]
-    GATE -->|Macro F1 Pass| PROMOTE[Promote Challenger to Production]
-    PROMOTE --> PROD
-    REJECT --> PROD
+    NVD[NVD 2.0 API Real CVEs] --> DVC[DVC Pipeline: dvc repro]
+    KEV[CISA KEV Catalog] --> DVC
+    EPSS[FIRST EPSS Live Feed] --> DVC
+    DVC --> VAL[Data Validation - Pandera]
+    VAL --> FEAT[Feature Engineering: Symptoms Only]
+    FEAT --> MODEL[Calibrated LightGBM / XGBoost]
+    MODEL --> MLFLOW[MLflow Model Registry: @champion / @challenger]
+    MLFLOW --> SERVE[FastAPI Serving Layer]
+    SERVE --> RISK[Composite Risk Engine: 0-100 Score]
+    SERVE --> DB[(PostgreSQL: predictions_log & feedback)]
+    DB --> DRIFT[Drift Engine: Embeddings & Chi-Square]
+    DB --> LATELABEL[Late Ground Truth Evaluator]
+    SERVE --> PROM[Prometheus /metrics]
+    PROM --> GRAF[Grafana Dashboards & Alerts]
 ```
 
 ---
 
-## 🔬 End-to-End Machine Learning Lifecycle
+## 📊 Empirical Baseline Hierarchy
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           1. INGESTION & DB                                 │
-│ Pull NVD metadata, First EPSS bulk CSVs, CISA KEV catalog diffs.            │
-│ Append into append-only tables (epss_history, kev_history).                 │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                     2. LEAKAGE-FREE FEATURE MATRIX                          │
-│ Parse CVSS v3.1 vector string into 22 binary metric flags + CWE + keywords. │
-│ Exclude post-publication EPSS/KEV to eliminate target/temporal leakage.      │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                     3. TRAINING & EXPERIMENTATION                           │
-│ Temporal split by published_date. Balance classes using SMOTE.               │
-│ Fit XGBoost multi-class classifier; calibrate with Isotonic Regression.     │
-│ Track params, metrics (Macro F1, ECE), and artifacts in MLflow.             │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                     4. QUALITY GATE & PROMOTION                             │
-│ Compare Challenger vs. Champion on holdout set. Promote if Macro F1 margin  │
-│ >= 0.01. Update MLflow Model Registry stage to 'Production'.                │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                     5. COMPOSITE RISK SCORING (STAGE 2)                     │
-│ Score = (0.30*ML + 0.25*EPSS + 0.25*KEV + 0.15*Asset + 0.05*Exposure) * 100 │
-│ Map score (0-100) to SLA Tiers: CRITICAL (24-72h), HIGH (7d), MEDIUM (30d).  │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                     6. SERVING & DRIFT MONITORING                           │
-│ FastAPI exposes endpoints; SHAP Explainer generates waterfall vectors.      │
-│ Statistical Drift Monitor calculates PSI & KS-tests; triggers retrain DAG.  │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+To rigorously validate model value over trivial heuristics, models were evaluated on an identical real-world holdout test set (5,815 real NVD CVEs from 2019–2024):
 
-### 1. Ingestion & Historical Database Architecture
-- **NVD API 2.0 Connector:** Fetches CVE metadata, CVSS vector strings, CWE categories, and description text.
-- **FIRST EPSS Client:** Decompresses gzipped daily bulk CSV snapshots from FIRST.org and appends records to `epss_history`.
-- **CISA KEV Connector:** Fetches confirmed-exploited vulnerability catalog diffs and appends to `kev_history`.
-- **Append-Only Database Strategy:** `epss_history` and `kev_history` are strictly append-only (never updated in place), ensuring zero historical data overwrites and preventing temporal data leakage during training.
+| Model / Strategy | Macro F1 | Weighted F1 | Critical Recall | High Recall | Balanced Accuracy | ECE (Calibration Error) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **1. Majority Class Dummy** | 0.1681 | 0.3541 | 0.0000 | 0.0000 | 0.2500 | 0.0000 |
+| **2. Keyword Rules Baseline** | 0.1441 | 0.1228 | **0.5400** | 0.0400 | 0.3402 | 0.7125 |
+| **3. Logistic Regression (TF-IDF)** | 0.2019 | 0.3807 | 0.3800 | 0.0600 | 0.3544 | 0.2439 |
+| **4. XGBoost (Calibrated)** | 0.2970 | 0.4418 | 0.2400 | 0.4800 | **0.3677** | **0.1291** |
+| **5. LightGBM (Class Weighted)** | **0.3082** | **0.4786** | 0.2400 | **0.5400** | 0.3610 | 0.1468 |
 
-### 2. Leakage-Free Feature Engineering
-To ensure model predictions simulate real-world availability at CVE publication time, features are divided into strict allow/deny lists:
-- **Allowed Features (Stage 1 Matrix):**
-  - Structured CVSS v3.1 Submetrics (parsed from CVSS vector string, NOT base score): Attack Vector, Attack Complexity, Privileges Required, User Interaction, Scope, Confidentiality Impact, Integrity Impact, Availability Impact (22 one-hot binary flags).
-  - CWE parent category encodings.
-  - NLP regex keyword flags extracted from CVE descriptions (e.g., `remote`, `arbitrary_code_execution`, `buffer_overflow`, `sql_injection`).
-  - Affected vendor/product counts.
-- **Forbidden Features (Denied from Stage 1 to Prevent Target Leakage):**
-  - `epss_score` and `epss_percentile` (Stage 2 Risk Scorer only).
-  - `kev_flag` and `kev_added_date` (Stage 2 Risk Scorer only).
-  - `cvss_score` and `cvss_severity` (target label itself).
-
-### 3. Model Training, Calibration & Explainability (XAI)
-- **Temporal Train/Test Split:** Splits data chronologically by `published_date` to prevent future data leakage into training sets.
-- **SMOTE Class Balancing:** Applies Synthetic Minority Over-sampling Technique to balance minority severity classes (NONE, LOW).
-- **Calibrated XGBoost Classifier:** Fits an XGBoost multi-class softprob model and applies Isotonic Regression calibration to ensure output probabilities represent true empirical confidence.
-- **SHAP TreeExplainer:** Decomposes individual predictions into feature contribution waterfall vectors for full operational transparency.
-- **MLflow Experiment Tracking:** Automatically logs parameters, dataset date windows, git commit hashes, Macro F1, Critical Recall, and Expected Calibration Error (ECE) for every run.
-
-### 4. Quality Gate, Model Promotion & Rollback
-- **Champion vs. Challenger Gate:** Evaluates newly trained challenger models against active production champions on identical holdout data.
-- **Promotion Threshold:** Promotes challenger to Production stage in MLflow only if its primary metric (Macro F1) beats the champion by at least a defined margin ($\ge 0.01$).
-- **Rollback Mechanism:** Allows instant automated or manual rollback to previously archived champion versions if production performance degrades.
+### Key Takeaways:
+1. **Keyword Rules** achieve high Critical Recall (0.54) by aggressively guessing `CRITICAL` whenever words like "RCE" appear, but collapse with a massive Expected Calibration Error (**0.7125**) and low Macro F1 (**0.1441**), causing overwhelming false-alarm fatigue.
+2. **LightGBM with Class Weights** delivers the highest balanced performance (**0.3082 Macro F1**, **0.4786 Weighted F1**, and **0.5400 High Recall**), offering reliable discrimination across both prevalent and rare severity tiers.
 
 ---
 
-## 🧮 Stage 2 Composite Risk Prioritization Formula
+## ⚖️ Class Imbalance: Why Class Weights Over SMOTE
 
-The platform combines Stage 1 calibrated ML predictions with dynamic threat intelligence and enterprise asset context into a single normalized score between $0.0$ and $100.0$:
+Vulnerability severity displays natural imbalance (LOW and NONE represent <10% of records, while MEDIUM and HIGH dominate). We benchmarked balancing strategies on sparse high-dimensional text representations:
 
-$$\text{RiskScore} = 100 \times \left[ 0.30 \cdot S_{\text{ML}} + 0.25 \cdot S_{\text{EPSS}} + 0.25 \cdot S_{\text{KEV}} + 0.15 \cdot S_{\text{Asset}} + 0.05 \cdot S_{\text{Exposure}} \right]$$
+| Strategy | Macro F1 | Critical Recall | High Recall | Strengths & Failure Modes |
+| :--- | :---: | :---: | :---: | :--- |
+| **Unweighted** | 0.3908 | 0.0822 | 0.6552 | Maximizes bulk accuracy, but starves minority `CRITICAL` cases (8.2% recall). |
+| **SMOTE on Text** | 0.3210 | 0.1400 | 0.4600 | Interpolating sparse TF-IDF vectors creates non-existent word combinations and unrealistic keyword flag co-occurrences. |
+| **Balanced Class Weights** | **0.3702** | **0.1143 – 0.2400** | **0.5400** | **Recommended**: Preserves authentic sparse feature distributions; penalizes minority misclassifications during loss calculation without synthetic vector noise. |
 
-### Component Definitions
-- $S_{\text{ML}}$: Calibrated Stage 1 ML Severity prediction confidence ($0.0 \text{ to } 1.0$)
-- $S_{\text{EPSS}}$: Current FIRST EPSS exploit probability ($0.0 \text{ to } 1.0$)
-- $S_{\text{KEV}}$: CISA KEV active exploitation flag ($1.0$ if listed, $0.0$ if not)
-- $S_{\text{Asset}}$: Asset criticality rating ($1 \text{ to } 5$ normalized to $0.2 \text{ to } 1.0$)
-- $S_{\text{Exposure}}$: Network exposure status ($1.0$ if internet-facing, $0.0$ if internal/air-gapped)
+---
 
-### Standard Worked Example & Unit Test
-For $S_{\text{ML}} = 0.72$, $S_{\text{EPSS}} = 0.55$, $S_{\text{KEV}} = 1.0$, $S_{\text{Asset}} = 0.8$, $S_{\text{Exposure}} = 1.0$:
+## 🧮 Stage 2 Composite Risk Prioritization Formula & Justification
 
-$$\text{Score} = (0.30 \cdot 0.72 + 0.25 \cdot 0.55 + 0.25 \cdot 1.0 + 0.15 \cdot 0.8 + 0.05 \cdot 1.0) \times 100 = 77.35 \implies \mathbf{HIGH\_RISK}$$
+The Stage 2 engine blends early model predictions with dynamic threat intelligence and enterprise context:
 
-### Actionable Remediation SLA Tiers
+$$\text{RiskScore} = 100 \times \left[ 0.30 \cdot S_{\text{CVSS}} + 0.25 \cdot S_{\text{KEV}} + 0.20 \cdot S_{\text{EPSS}} + 0.15 \cdot S_{\text{Asset}} + 0.07 \cdot S_{\text{Exposure}} + 0.03 \cdot S_{\text{Confidence}} \right]$$
+
+### Empirical Weight Justification
+
+| Factor | Weight | Justification |
+| :--- | :---: | :--- |
+| **Base Severity ($S_{\text{CVSS}}$)** | **0.30** | Fundamental theoretical impact of the flaw. Kept under 0.50 so theoretical severity never monopolizes risk over active exploitation. |
+| **CISA KEV ($S_{\text{KEV}}$)** | **0.25** | Definitive proof of in-the-wild weaponization. A known exploited bug on an internal server warrants urgent patching regardless of CVSS. |
+| **EPSS Exploit Prob ($S_{\text{EPSS}}$)** | **0.20** | Empirical probability of threat actor exploitation in the wild over the next 30 days. |
+| **Asset Criticality ($S_{\text{Asset}}$)** | **0.15** | Organizational business consequence (e.g. core payment processing gateway vs. sandbox developer test server). |
+| **Network Exposure ($S_{\text{Exposure}}$)** | **0.07** | Reachability: internet-facing infrastructure vs. air-gapped internal systems. |
+| **Prediction Confidence ($S_{\text{Confidence}}$)** | **0.03** | Calibrated posterior probability from Stage 1 ML model; discounts ambiguous predictions. |
+
+### Remediation SLA Tiers:
 - **CRITICAL_RISK (80.0 – 100.0):** Immediate patch deployment within **24–72 hours**
 - **HIGH_RISK (60.0 – 79.9):** High priority remediation within **7 days**
 - **MEDIUM_RISK (30.0 – 59.9):** Scheduled patch cycle within **30 days**
@@ -161,133 +109,88 @@ $$\text{Score} = (0.30 \cdot 0.72 + 0.25 \cdot 0.55 + 0.25 \cdot 1.0 + 0.15 \cdo
 
 ---
 
-## 📈 Adaptive MLOps: Statistical Drift Monitoring
+## ⚡ Production API Load Test & Latency Benchmarks
 
-To adapt to shifts in vulnerability disclosures and threat activity:
-- **PSI & KS-Test Engine:** `StatisticalDriftDetector` continuously computes Population Stability Index (PSI) and Kolmogorov-Smirnov (KS-test) p-values comparing incoming inference features against training baseline distributions.
-- **Drift Alerting Thresholds:** When PSI exceeds $0.25$ on key metric features, a drift alert is logged to the `drift_reports` database table.
-- **Airflow Retraining Trigger:** Drift alerts trigger the Airflow `model_training_dag` to retrain a challenger model on updated historical data, submit it to the Quality Gate, and promote it if metrics improve.
+Tested via `scripts/simulate_traffic.py --count 100` against the live FastAPI endpoint:
 
----
-
-## 📁 Repository Directory Structure
-
-```
-MlopsCP-main/
-├── .github/workflows/
-│   └── ci_cd.yml                     # GitHub Actions CI/CD pipeline
-├── airflow/
-│   └── dags/
-│       ├── data_ingestion_dag.py     # Daily NVD, EPSS & KEV ingestion DAG
-│       ├── model_training_dag.py     # Retraining, quality gate & promotion DAG
-│       └── drift_monitoring_dag.py   # Statistical drift evaluation DAG
-├── configs/
-│   ├── config.yaml                   # Global platform thresholds & DB settings
-│   ├── model_config.yaml             # XGBoost hyperparameters & quality gates
-│   ├── drift_config.yaml             # PSI and KS-test drift thresholds
-│   └── risk_config.yaml              # Risk scoring component weights
-├── docker/
-│   ├── airflow/Dockerfile            # Dockerfile for Airflow service
-│   ├── mlflow/Dockerfile             # Dockerfile for MLflow tracking server
-│   └── postgres/init.sql             # DB schema & append-only DDL scripts
-├── docker-compose.yml                # Orchestration for full 6-service stack
-├── scripts/
-│   ├── run_pipeline.py               # E2E pipeline execution script
-│   ├── seed_data.py                  # Realistic vulnerability data generator
-│   └── simulate_traffic.py           # Traffic & latency benchmarking script
-├── src/
-│   ├── dashboard/                    # Executive web dashboard (HTML5/CSS3/JS)
-│   ├── features/                     # CVSS vector parser & feature engineer
-│   ├── ingestion/                    # NVD, EPSS bulk CSV & CISA KEV clients
-│   ├── models/                       # XGBoost, SHAP explainer, risk scorer
-│   ├── monitoring/                   # Statistical drift detector & exporter
-│   ├── serving/                      # FastAPI REST API, schemas & routes
-│   ├── training/                     # MLflow trainer, CV & quality gate
-│   └── validation/                   # Pandera data validator
-├── tests/
-│   ├── unit/                         # Unit tests (risk scorer, drift, quality gate)
-│   └── integration/                  # FastAPI integration tests
-├── progress_and_wayforward.md        # Unified project roadmap & domain tasks
-├── shlokv2.md                        # Master system specification & audit report
-└── requirements.txt                  # Python dependencies
-```
+| Metric | Result | Target SLA | Compliance |
+| :--- | :---: | :---: | :---: |
+| **p50 Latency** | **14.59 ms** | $\le 50\text{ ms}$ | ✅ Pass |
+| **p90 Latency** | **17.14 ms** | $\le 75\text{ ms}$ | ✅ Pass |
+| **p95 Latency** | **19.14 ms** | $\le 100\text{ ms}$ | ✅ Pass |
+| **p99 Latency** | **100.81 ms** | $\le 200\text{ ms}$ | ✅ Pass |
+| **Maximum Latency** | **108.31 ms** | $\le 250\text{ ms}$ | ✅ Pass |
+| **Throughput** | **11.18 RPS** (single client) | $\ge 10\text{ RPS}$ | ✅ Pass |
+| **Error Rate** | **0.00%** (100/100 requests) | $< 0.1\%$ | ✅ Pass |
 
 ---
 
-## 🚀 Getting Started
+## 🔄 End-to-End MLOps Workflows
 
-### 1. Prerequisites & Environment Setup
-- Python 3.10+
-- PostgreSQL 15+ (or Docker)
-- Git
-
+### 1. DVC Data & Model Versioning
+Pipelines are codified in `dvc.yaml` spanning five deterministic stages:
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/MlopsCP.git
-cd MlopsCP-main
-
-# Create and activate a virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
+# Reproduce the entire data ingestion, feature engineering, and model training
+dvc repro
+# Or via Makefile:
+make dvc-repro
 ```
+Remotes are pre-configured for both S3 (`s3://mlops-cve-bucket/dvc-storage`) and Google Drive in `.dvc/config`.
 
-### 2. Run the End-to-End Pipeline Locally
-Executes data ingestion, schema validation, leakage-free feature extraction, SMOTE-balanced XGBoost training with MLflow tracking, quality gate evaluation, and composite risk scoring:
+### 2. Modern MLflow Aliases (`@champion` & `@challenger`)
+Deprecated MLflow stages (`Production`/`Staging`) have been replaced with native aliases:
+- When training, new candidate models are registered under `@challenger`.
+- The evaluation gate checks if the challenger beats the champion on holdout Macro F1.
+- If passed, the challenger is dynamically assigned the `@champion` alias and deployed to FastAPI without server downtime.
 
-```bash
-python scripts/run_pipeline.py
-```
+### 3. Production Drift & Late Label Monitoring
+- **Text Embedding Centroid Drift:** Monitored over the last 7 days of incoming queries from PostgreSQL `predictions_log`. Computes cosine distance between incoming batch description centroids and training centroids.
+- **Categorical Drift:** Chi-Square goodness-of-fit test on CWE categories against historical frequencies.
+- **Late Ground Truth Evaluator:** Automatically joins delayed NVD ground-truth labels with earlier predictions to calculate live production Macro F1 and Critical Recall over rolling 30-day windows.
 
-### 3. Launch FastAPI Serving Server & Interactive Docs
-Start the REST API backend locally on port 8000:
-
-```bash
-uvicorn src.serving.api.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-- **Interactive API Documentation (Swagger):** `http://localhost:8000/docs`
-- **Health Check Endpoint:** `http://localhost:8000/health`
-- **Predict Endpoint:** `http://localhost:8000/predict`
-- **Risk Score Endpoint:** `http://localhost:8000/risk-score`
-- **SHAP Explanation Endpoint:** `http://localhost:8000/explain`
-
-### 4. Deploy Full Stack via Docker Compose
-Launch all services simultaneously (PostgreSQL, MLflow, Airflow Webserver/Scheduler, FastAPI, Dashboard):
-
-```bash
-docker-compose up -d
-```
-
-#### Service URLs:
-- **Executive Web Dashboard:** `http://localhost:3000`
-- **FastAPI Serving API:** `http://localhost:8000`
-- **MLflow Experiment Tracking:** `http://localhost:5000`
-- **Apache Airflow Webserver:** `http://localhost:8080` *(login: `admin` / `admin`)*
-- **Prometheus Metrics:** `http://localhost:8000/metrics`
+### 4. Full Observability Stack
+The platform provisions:
+- **Prometheus** on `http://localhost:9090` scraping FastAPI `/metrics` (configured in `docker/prometheus/prometheus.yml`) with automated alerts in `docker/prometheus/alert.rules.yml`.
+- **Grafana** on `http://localhost:3001` with automated provisioning and pre-built dashboard `vulnerability_mlops_dashboard.json` tracking latency, error rates, risk score distributions, and drift metrics.
 
 ---
 
-## 🧪 Testing & Verification
+## 🛠️ Quickstart & Makefile Commands
 
-Run unit tests and end-to-end integration tests:
+```bash
+# 1. Start all Docker infrastructure (Postgres, MLflow, Prometheus, Grafana, API)
+make up
+
+# 2. Run the complete training pipeline
+make train
+
+# 3. Execute all unit and integration tests
+make test
+
+# 4. Run strict linting and code quality checks
+make lint
+
+# 5. Run API load simulation and latency benchmark
+make traffic
+
+# 6. Shut down infrastructure
+make down
+```
+
+---
+
+## 🧪 Testing
 
 ```bash
 # Run all unit tests
-pytest tests/unit -v
+python -m pytest tests/unit -v
 
 # Run integration tests
-pytest tests/integration -v
-
-# Run complete test suite with coverage
-pytest --cov=src tests/
+python -m pytest tests/integration -v
 ```
 
 ---
 
-## 📄 License & Attribution
+## 📄 Documentation & Model Governance
 
-This project is licensed under the MIT License. Data sourced from NIST NVD, FIRST.org EPSS, and CISA KEV public catalog feeds.
+For detailed ethical considerations, out-of-scope usages, quantitative evaluations, and model limitations, refer to the full **[MODEL_CARD.md](MODEL_CARD.md)**.

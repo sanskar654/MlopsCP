@@ -1,0 +1,114 @@
+schema: '2.0'
+stages:
+  ingest:
+    cmd: python -c "from src.ingestion.backfill import 
+      fetch_and_merge_real_data; fetch_and_merge_real_data(nvd_sample_size=50)"
+    deps:
+    - path: src/ingestion/cisa_kev_client.py
+      hash: md5
+      md5: c6d7e94cfa6b1e35b2dcd7a649f0bbc5
+      size: 5727
+    - path: src/ingestion/nvd_client.py
+      hash: md5
+      md5: 1a221b15f00ebb33176a60f580027386
+      size: 12091
+    outs:
+    - path: data/processed/real_cve_dataset.parquet
+      hash: md5
+      md5: feed2dcb46679435d252d85492dc97c6
+      size: 49089
+  validate:
+    cmd: python -c "import pandas as pd; from src.validation.schema_validator 
+      import VulnerabilitySchemaValidator; df = 
+      pd.read_csv('data/raw/nvd_cves_recent.csv'); clean_df, _ = 
+      VulnerabilitySchemaValidator().validate_raw(df.dropna(subset=['description',
+      'base_severity'])); 
+      clean_df.to_parquet('data/interim/validated_data.parquet', index=False)"
+    deps:
+    - path: data/raw/nvd_cves_recent.csv
+      hash: md5
+      md5: 7c03de1bb0b2c938ee6990d8d1cda2c8
+      size: 8287777
+    - path: src/validation/schema_validator.py
+      hash: md5
+      md5: e1dbdcfcf6404584d41dee270e3cd866
+      size: 9454
+    outs:
+    - path: data/interim/validated_data.parquet
+      hash: md5
+      md5: dfee87703cd586a70fe6fd9a11cd667c
+      size: 125879
+  features:
+    cmd: python -c "import pandas as pd; from src.features.feature_engineer 
+      import FeatureEngineer; df = 
+      pd.read_parquet('data/interim/validated_data.parquet'); fe = 
+      FeatureEngineer(); fe.fit(df); feat = fe.transform(df); 
+      feat.to_parquet('data/processed/features.parquet', index=False)"
+    deps:
+    - path: data/interim/validated_data.parquet
+      hash: md5
+      md5: dfee87703cd586a70fe6fd9a11cd667c
+      size: 125879
+    - path: src/features/feature_engineer.py
+      hash: md5
+      md5: 9cc262417b4a45102798a9f664df93e2
+      size: 16127
+    outs:
+    - path: data/processed/features.parquet
+      hash: md5
+      md5: e4d118bbb56b9253a24ea065b082adda
+      size: 804923
+  train:
+    cmd: python -c "from src.training.trainer import VulnerabilityTrainer; t = 
+      VulnerabilityTrainer(); 
+      t.train_and_evaluate(data_path='data/processed/features.parquet')"
+    deps:
+    - path: data/processed/features.parquet
+      hash: md5
+      md5: e4d118bbb56b9253a24ea065b082adda
+      size: 804923
+    - path: src/models/severity_classifier.py
+      hash: md5
+      md5: 8172431dd681960586746cd794957351
+      size: 12424
+    - path: src/training/trainer.py
+      hash: md5
+      md5: 237485bf21430a9714e0a14e12fbf2a2
+      size: 12736
+    outs:
+    - path: configs/tfidf_vectorizer.joblib
+      hash: md5
+      md5: 811da33158b23df3370cc1c01f40f50c
+      size: 4625
+  evaluate:
+    cmd: python scripts/run_pipeline.py
+    deps:
+    - path: data/processed/features.parquet
+      hash: md5
+      md5: e4d118bbb56b9253a24ea065b082adda
+      size: 804923
+    - path: scripts/run_pipeline.py
+      hash: md5
+      md5: c1500d48b967f9fbc6ccffc66a9b9610
+      size: 12034
+    - path: src/models/baseline_comparator.py
+      hash: md5
+      md5: 3d1dc99a539f50ba8b0099ee247659a0
+      size: 16415
+    - path: src/models/kev_predictor.py
+      hash: md5
+      md5: fea42a6a5eab0c73103b9e25a16e627d
+      size: 5649
+    outs:
+    - path: data/monitoring/baseline_comparison_results.csv
+      hash: md5
+      md5: 48f2d56ed6de8f9935cb4b89a171fdd4
+      size: 361
+    - path: data/monitoring/imbalance_strategy_comparison.csv
+      hash: md5
+      md5: 29e1e92040fcb75487a573836e259597
+      size: 265
+    - path: data/monitoring/risk_weights_justification.json
+      hash: md5
+      md5: 3b6434c12f5017f267733f627f7656de
+      size: 444

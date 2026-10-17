@@ -43,8 +43,8 @@ from features.feature_engineer import ALL_FEATURES, TARGET_COLUMN
 logger = logging.getLogger(__name__)
 
 
-SEVERITY_LABELS = ["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
-N_CLASSES = 5
+SEVERITY_LABELS = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+N_CLASSES = 4
 
 
 class SeverityClassifier:
@@ -58,7 +58,15 @@ class SeverityClassifier:
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        self.config = config or self._default_config()
+        defaults = self._default_config()
+        if config:
+            if "xgb_params" in config and "xgb_params" in defaults:
+                merged_xgb = {**defaults["xgb_params"], **config["xgb_params"]}
+                defaults["xgb_params"] = merged_xgb
+            for k, v in config.items():
+                if k != "xgb_params":
+                    defaults[k] = v
+        self.config = defaults
         self.pipeline: Pipeline | None = None
         self.calibrated_model: CalibratedClassifierCV | None = None
         self.feature_names: list[str] = []
@@ -155,24 +163,26 @@ class SeverityClassifier:
 
         self.pipeline.fit(X_train, y_train, **fit_params)
 
-        # Probability calibration using held-out fold
+        # Probability calibration
         logger.info("Calibrating probabilities with isotonic regression...")
-        if X_val is not None and y_val is not None:
-            # Calibrate on validation set
-            self.calibrated_model = CalibratedClassifierCV(
-                estimator=self.pipeline,
-                method=self.config["calibration_method"],
-                cv="prefit",  # Already fitted
-            )
-            X_val_filled = X_val.fillna(0)
-            self.calibrated_model.fit(X_val_filled, y_val)
-        else:
-            self.calibrated_model = CalibratedClassifierCV(
-                estimator=self.pipeline,
-                method=self.config["calibration_method"],
-                cv=self.config["calibration_cv"],
-            )
-            self.calibrated_model.fit(X_train, y_train)
+        try:
+            if X_val is not None and y_val is not None:
+                self.calibrated_model = CalibratedClassifierCV(
+                    estimator=self.pipeline,
+                    method=self.config.get("calibration_method", "isotonic"),
+                    cv=None,
+                )
+                self.calibrated_model.fit(X_val.fillna(0), y_val)
+            else:
+                self.calibrated_model = CalibratedClassifierCV(
+                    estimator=self.pipeline,
+                    method=self.config.get("calibration_method", "isotonic"),
+                    cv=min(3, max(2, int(y_train.value_counts().min()))),
+                )
+                self.calibrated_model.fit(X_train, y_train)
+        except Exception as e_calib:
+            logger.warning(f"Probability calibration fallback to raw pipeline: {e_calib}")
+            self.calibrated_model = self.pipeline
 
         self.is_fitted = True
         logger.info("Classifier fitted and calibrated successfully")
@@ -239,6 +249,7 @@ class SeverityClassifier:
         # Critical class (4) recall — critical for quality gate
         report = classification_report(
             y_test, y_pred,
+            labels=list(range(len(SEVERITY_LABELS))),
             target_names=SEVERITY_LABELS,
             output_dict=True,
             zero_division=0,

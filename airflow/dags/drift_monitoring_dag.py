@@ -2,6 +2,12 @@
 Airflow DAG: Drift Detection & Automated Retraining Trigger
 ==========================================================
 Runs periodically to compare production inference logs against baseline training data.
+Reads the last 7 days from `predictions_log` in PostgreSQL.
+Monitors:
+- Tabular feature distribution drift (KS-Test & PSI)
+- Text embedding drift (TF-IDF semantic centroid shift)
+- CWE category distribution drift (Chi-Square)
+
 If dataset drift exceeds threshold, triggers the retraining DAG automatically.
 """
 
@@ -23,30 +29,40 @@ default_args = {
     "depends_on_past": False,
     "start_date": datetime(2025, 1, 1),
     "email_on_failure": True,
-    "email": [os.getenv("ALERT_EMAIL", "mlops-alerts@syngenta-sec.org")],
+    "email": [os.getenv("ALERT_EMAIL", "mlops-alerts@vulnerability-mlops.local")],
     "retries": 1,
     "retry_delay": timedelta(minutes=5),
 }
 
 
 def check_production_drift(**kwargs):
-    """Run statistical and PSI drift analysis between baseline and recent inference."""
+    """
+    Run statistical, text embedding, and CWE distribution drift analysis
+    by querying the last 7 days from PostgreSQL predictions_log.
+    """
     import pandas as pd
     from monitoring.drift_detector import DriftMonitor
     from monitoring.alerting import AlertManager
 
-    ref_path = "/opt/airflow/data/processed/features.parquet"
-    curr_path = "/opt/airflow/data/inference_logs/recent_cves.parquet"
-
-    if not os.path.exists(curr_path):
-        logging.info("No new inference logs to test for drift. Skipping.")
-        return "no_drift_detected"
+    base_dir = os.getenv("AIRFLOW_HOME", "/opt/airflow")
+    ref_path = os.path.join(base_dir, "data/processed/features.parquet")
+    if not os.path.exists(ref_path):
+        ref_path = "data/processed/features.parquet"
 
     monitor = DriftMonitor(reference_data_path=ref_path, drift_share_threshold=0.25)
-    curr_df = pd.read_parquet(curr_path)
+
+    # Read last 7 days of inference from PostgreSQL predictions_log
+    curr_df = monitor.load_recent_production_logs(days=7)
+
+    if curr_df.empty:
+        logging.info("No inference logs found in predictions_log for the last 7 days. Skipping.")
+        return "no_drift_detected"
+
+    logging.info("Analyzing drift on %d recent production predictions...", len(curr_df))
     report = monitor.run_drift_analysis(curr_df)
 
-    monitor.save_report(report, "/opt/airflow/data/monitoring/latest_drift_report.json")
+    report_path = os.path.join(base_dir, "data/monitoring/latest_drift_report.json")
+    monitor.save_report(report, report_path)
 
     alerter = AlertManager()
     alerter.check_drift_alert(report)
@@ -66,10 +82,10 @@ def drift_stable_log(**kwargs):
 with DAG(
     dag_id="vulnerability_drift_monitoring_pipeline",
     default_args=default_args,
-    description="Monitors production feature/prediction drift and triggers adaptive retraining",
+    description="Monitors production feature, text embedding, and CWE drift from PostgreSQL logs",
     schedule_interval="0 */6 * * *",  # Every 6 hours
     catchup=False,
-    tags=["monitoring", "drift", "evidently", "adaptive"],
+    tags=["monitoring", "drift", "text_drift", "cwe_drift", "adaptive"],
 ) as dag:
 
     drift_branch = BranchPythonOperator(

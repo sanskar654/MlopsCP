@@ -221,6 +221,49 @@ services:
     networks:
       - mlops-network
 
+  # ──────────────────────────────────────────────────────────────
+  # Monitoring & Metrics: Prometheus & Grafana
+  # ──────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: vuln-prometheus
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./docker/prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.console.libraries=/usr/share/prometheus/console_libraries
+      - --web.console.templates=/usr/share/prometheus/consoles
+    ports:
+      - "9090:9090"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - mlops-network
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: vuln-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-GrafanaSecure2026!}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
+      - ./docker/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - mlops-network
+
 # ──────────────────────────────────────────────────────────────
 # Volumes
 # ──────────────────────────────────────────────────────────────
@@ -229,6 +272,8 @@ volumes:
   redis-data:
   mlflow-artifacts:
   airflow-logs:
+  prometheus-data:
+  grafana-data:
 
 # ──────────────────────────────────────────────────────────────
 # Networks
@@ -236,3 +281,4 @@ volumes:
 networks:
   mlops-network:
     driver: bridge
+

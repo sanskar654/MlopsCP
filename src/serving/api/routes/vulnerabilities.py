@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import numpy as np
@@ -125,7 +124,9 @@ def _safe_float(val: Any, default: float) -> float:
 
 def _extract_vendor(row: pd.Series) -> str:
     raw_vendor = row.get("vendor")
-    if raw_vendor is not None and not (isinstance(raw_vendor, float) and math.isnan(raw_vendor)):
+    if raw_vendor is not None and not (
+        isinstance(raw_vendor, float) and math.isnan(raw_vendor)
+    ):
         v_str = str(raw_vendor).strip()
         if v_str and v_str.lower() not in ("nan", "none", "n/a", "enterprise vendor"):
             return v_str.title()
@@ -192,9 +193,15 @@ def _load_dataset_vulns() -> List[VulnerabilitySummary]:
 
             res = []
             for _, r in valid_df.iterrows():
-                score = _safe_float(r.get("base_score"), _safe_float(r.get("cvss_score"), 7.5))
+                score = _safe_float(
+                    r.get("base_score"), _safe_float(r.get("cvss_score"), 7.5)
+                )
                 raw_sev = r.get("base_severity") or r.get("severity_label")
-                sev = str(raw_sev).strip().upper() if raw_sev is not None and not pd.isna(raw_sev) else ""
+                sev = (
+                    str(raw_sev).strip().upper()
+                    if raw_sev is not None and not pd.isna(raw_sev)
+                    else ""
+                )
                 if sev not in ["CRITICAL", "HIGH", "MEDIUM", "LOW"]:
                     if score >= 9.0:
                         sev = "CRITICAL"
@@ -205,7 +212,9 @@ def _load_dataset_vulns() -> List[VulnerabilitySummary]:
                     else:
                         sev = "LOW"
 
-                epss_default = round(min(0.95, max(0.02, (score / 10.0) ** 2 * 0.45)), 3)
+                epss_default = round(
+                    min(0.95, max(0.02, (score / 10.0) ** 2 * 0.45)), 3
+                )
                 epss_val = _safe_float(r.get("epss_score"), epss_default)
                 kev_val = bool(
                     (not pd.isna(r.get("in_cisa_kev")) and r.get("in_cisa_kev"))
@@ -282,7 +291,9 @@ async def get_dashboard_stats() -> Dict[str, Any]:
     alerts = []
     sorted_vulns = sorted(
         vulns,
-        key=lambda v: (1 if v.cisa_kev else 0) * 40 + v.cvss_score * 4 + v.epss_score * 20,
+        key=lambda v: (1 if v.cisa_kev else 0) * 40
+        + v.cvss_score * 4
+        + v.epss_score * 20,
         reverse=True,
     )
     for v in sorted_vulns[:8]:
@@ -295,18 +306,24 @@ async def get_dashboard_stats() -> Dict[str, Any]:
             + 0.03 * 0.95
         )
         score = round(min(100.0, raw_score), 1)
-        sla = "24 Hours (URGENT)" if score >= 80 else ("72 Hours" if score >= 60 else "14 Days")
-        alerts.append({
-            "cve_id": v.cve_id,
-            "severity": v.severity,
-            "cisa_kev": v.cisa_kev,
-            "epss_score": round(v.epss_score * 100, 1),
-            "risk_score": score,
-            "sla": sla,
-            "vendor": v.vendor,
-            "cwe": v.cwe,
-            "description": v.description,
-        })
+        sla = (
+            "24 Hours (URGENT)"
+            if score >= 80
+            else ("72 Hours" if score >= 60 else "14 Days")
+        )
+        alerts.append(
+            {
+                "cve_id": v.cve_id,
+                "severity": v.severity,
+                "cisa_kev": v.cisa_kev,
+                "epss_score": round(v.epss_score * 100, 1),
+                "risk_score": score,
+                "sla": sla,
+                "vendor": v.vendor,
+                "cwe": v.cwe,
+                "description": v.description,
+            }
+        )
 
     return {
         "total_cves": total if total > 50 else 246819,

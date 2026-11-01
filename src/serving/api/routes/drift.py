@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
-import os
 import random
 from pathlib import Path
 from typing import Any, Dict
@@ -65,7 +64,9 @@ def _load_latest_drift_report() -> Dict[str, Any]:
         "dataset_drift": False,
         "drift_share": avg_psi,
         "drift_share_threshold": 0.20,
-        "drifted_features_count": sum(1 for v in features_summary.values() if v["drift"]),
+        "drifted_features_count": sum(
+            1 for v in features_summary.values() if v["drift"]
+        ),
         "total_features_tested": int(raw_data.get("total_features_tested", 46)),
         "status": "NOMINAL" if avg_psi < 0.20 else "DRIFT_ALERT",
         "features": features_summary,
@@ -104,7 +105,9 @@ async def trigger_drift_recalculation() -> Dict[str, Any]:
         jitter = random.uniform(-0.006, 0.008)
         new_psi = round(max(0.012, min(0.18, f_info["psi"] + jitter)), 4)
         f_info["psi"] = new_psi
-        f_info["curr_mean"] = round(f_info["curr_mean"] * (1.0 + random.uniform(-0.015, 0.018)), 3)
+        f_info["curr_mean"] = round(
+            f_info["curr_mean"] * (1.0 + random.uniform(-0.015, 0.018)), 3
+        )
         f_info["drift"] = new_psi >= 0.20
         psi_vals.append(new_psi)
 

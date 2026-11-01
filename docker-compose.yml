@@ -61,6 +61,7 @@ services:
       retries: 5
     networks:
       - mlops-network
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -78,6 +79,7 @@ services:
       retries: 5
     networks:
       - mlops-network
+    restart: unless-stopped
 
   # ──────────────────────────────────────────────────────────────
   # MLflow (local filesystem artifact store - no MinIO needed)
@@ -109,6 +111,7 @@ services:
       retries: 10
     networks:
       - mlops-network
+    restart: unless-stopped
 
   # ──────────────────────────────────────────────────────────────
   # Airflow
@@ -134,7 +137,7 @@ services:
   airflow-webserver:
     <<: *airflow-common
     container_name: vuln-airflow-webserver
-    command: airflow webserver
+    command: bash -c "rm -f /opt/airflow/airflow-webserver.pid && airflow webserver"
     ports:
       - "8090:8080"
     healthcheck:
@@ -212,6 +215,8 @@ services:
     env_file: .env
     ports:
       - "8080:80"
+    volumes:
+      - ./src/dashboard:/usr/share/nginx/html
     environment:
       API_BASE_URL: http://api:8000
     depends_on:
@@ -249,15 +254,18 @@ services:
     image: grafana/grafana:10.4.0
     container_name: vuln-grafana
     environment:
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-GrafanaSecure2026!}
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_SECURITY_DISABLE_BRUTE_FORCE_LOGIN_PROTECTION=true
     volumes:
       - ./docker/grafana/provisioning:/etc/grafana/provisioning
-      - ./docker/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./docker/grafana/dashboards:/etc/grafana/dashboards
       - grafana-data:/var/lib/grafana
     ports:
-      - "3000:3000"
+      - "3001:3000"
     depends_on:
       - prometheus
     restart: unless-stopped

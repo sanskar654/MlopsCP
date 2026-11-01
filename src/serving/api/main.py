@@ -152,15 +152,30 @@ app.add_middleware(
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    """Log all requests with timing."""
+    """Log all requests with timing and export to Prometheus."""
     start = time.perf_counter()
     response = await call_next(request)
-    duration_ms = (time.perf_counter() - start) * 1000
+    duration_s = time.perf_counter() - start
+    duration_ms = duration_s * 1000
     logger.info(
         f"{request.method} {request.url.path} "
         f"→ {response.status_code} ({duration_ms:.1f}ms)"
     )
     response.headers["X-Response-Time-Ms"] = f"{duration_ms:.1f}"
+
+    try:
+        from src.monitoring.metrics_exporter import (
+            HTTP_REQUESTS_TOTAL,
+            HTTP_REQUEST_DURATION_SECONDS,
+        )
+
+        HTTP_REQUESTS_TOTAL.labels(
+            method=request.method, status=str(response.status_code)
+        ).inc()
+        HTTP_REQUEST_DURATION_SECONDS.observe(duration_s)
+    except Exception:
+        pass
+
     return response
 
 
@@ -183,6 +198,7 @@ app.include_router(feedback.router, prefix="/api/v1", tags=["Feedback"])
 app.include_router(models.router, prefix="/api/v1", tags=["Model Registry"])
 app.include_router(drift.router, prefix="/api/v1", tags=["Drift Monitoring"])
 app.include_router(metrics.router, prefix="/api/v1", tags=["Metrics"])
+app.include_router(metrics.router, tags=["Metrics"])
 app.include_router(retrain.router, prefix="/api/v1", tags=["Operations"])
 
 

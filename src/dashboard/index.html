@@ -3,532 +3,2810 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Software Vulnerability Severity Classification & Contextual Risk Prioritization Platform</title>
+  <title>VulnPrioritize MLOps | Enterprise Vulnerability Risk Engine</title>
+
+  <!-- Architectural Editorial Typography (Space Grotesk + Instrument Serif + JetBrains Mono) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <!-- Bootstrap Icons CDN -->
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="css/dashboard.css">
+
+  <style>
+    /* ─── Swiss Architectural & Tactile Editorial Design System ─────────────── */
+    :root {
+      /* Warm Stone Paper & Ivory Surfaces (Not generic AI neon/white) */
+      --bg-canvas: #F5F4EF;
+      --bg-surface: #FFFFFF;
+      --bg-subtle: #ECEAE2;
+      --bg-input: #FAF9F6;
+      --bg-elevated: #FFFFFF;
+      --bg-sidebar: #121316;
+      --bg-sidebar-hover: rgba(255, 255, 255, 0.06);
+      --bg-sidebar-active: rgba(255, 255, 255, 0.11);
+
+      --border-subtle: rgba(18, 19, 22, 0.085);
+      --border-strong: rgba(18, 19, 22, 0.16);
+      --border-focus: #1E3A8A;
+
+      /* Restrained Architectural Accent (Deep Slate Cobalt & Warm Bronze) */
+      --accent-primary: #1E3A8A;
+      --accent-primary-hover: #172554;
+      --accent-primary-subtle: rgba(30, 58, 138, 0.07);
+
+      /* Carbon Ink Typography Tokens */
+      --text-heading: #121316;
+      --text-body: #45484F;
+      --text-muted: #858992;
+      --text-subtle: #636770;
+
+      /* Muted Editorial Severity Badges */
+      --sev-crit-bg: #FDECEC;
+      --sev-crit-text: #991B1B;
+      --sev-crit-border: #F5BABA;
+
+      --sev-high-bg: #FFF1E6;
+      --sev-high-text: #9A3412;
+      --sev-high-border: #F8C9A6;
+
+      --sev-med-bg: #FDF6E2;
+      --sev-med-text: #854D0E;
+      --sev-med-border: #F3DC99;
+
+      --sev-low-bg: #E8F5EE;
+      --sev-low-text: #14532D;
+      --sev-low-border: #A6DBC0;
+
+      /* Modular Spacing */
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 24px;
+      --space-6: 32px;
+      --space-8: 48px;
+      --space-10: 64px;
+      --space-12: 96px;
+
+      /* Architectural Radii */
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --radius-pill: 9999px;
+
+      /* Sidebar Dimensions */
+      --sidebar-width: 288px;
+
+      /* Tactile Multi-Layered Elevation */
+      --shadow-soft: 0 1px 2px rgba(18, 19, 22, 0.04), 0 8px 24px rgba(18, 19, 22, 0.04);
+      --shadow-hover: 0 4px 8px rgba(18, 19, 22, 0.06), 0 20px 40px rgba(18, 19, 22, 0.09);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-canvas);
+      /* Subtle architectural drafting grid background */
+      background-image:
+        radial-gradient(rgba(18, 19, 22, 0.07) 1px, transparent 1px),
+        linear-gradient(to right, rgba(18, 19, 22, 0.025) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(18, 19, 22, 0.025) 1px, transparent 1px);
+      background-size: 24px 24px, 96px 96px, 96px 96px;
+      background-attachment: fixed;
+      color: var(--text-body);
+      min-height: 100vh;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+      transition: padding-left 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    body.sidebar-open {
+      padding-left: var(--sidebar-width);
+    }
+
+    @media (max-width: 1080px) {
+      body.sidebar-open {
+        padding-left: 0;
+      }
+    }
+
+    h1, h2, h3, h4, .brand-title {
+      font-family: 'Space Grotesk', sans-serif;
+    }
+
+    .serif-italic {
+      font-family: 'Instrument Serif', Georgia, serif;
+      font-style: italic;
+      font-weight: 400;
+    }
+
+    code, pre, .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ─── Top Scroll Progress Bar ──────────────────────────────────────────── */
+    .scroll-progress-track {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: transparent;
+      z-index: 2000;
+      pointer-events: none;
+    }
+
+    .scroll-progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #121316 0%, #1E3A8A 65%, #0F766E 100%);
+      transition: width 0.08s linear;
+    }
+
+    /* ─── Collapsible Vertical Left Sidebar Drawer ─────────────────────────── */
+    .vertical-sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: var(--sidebar-width);
+      height: 100vh;
+      background: var(--bg-sidebar);
+      color: #E5E7EB;
+      z-index: 1500;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid rgba(255, 255, 255, 0.08);
+      transform: translateX(-100%);
+      transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.42s ease;
+      box-shadow: none;
+      user-select: none;
+    }
+
+    body.sidebar-open .vertical-sidebar {
+      transform: translateX(0);
+      box-shadow: 16px 0 48px rgba(18, 19, 22, 0.18);
+    }
+
+    .sidebar-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(18, 19, 22, 0.35);
+      backdrop-filter: blur(3px);
+      z-index: 1400;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    @media (max-width: 1080px) {
+      body.sidebar-open .sidebar-backdrop {
+        opacity: 1;
+        pointer-events: auto;
+      }
+    }
+
+    .sidebar-top-bar {
+      padding: 1.25rem 1.35rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .sidebar-brand-group {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      cursor: pointer;
+    }
+
+    .sidebar-brand-emblem {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      background: #FFFFFF;
+      color: #121316;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.98rem;
+      font-weight: 700;
+    }
+
+    .sidebar-brand-text {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #FFFFFF;
+      letter-spacing: -0.02em;
+      display: block;
+    }
+
+    .sidebar-brand-sub {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.66rem;
+      color: #9CA3AF;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .sidebar-close-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #D1D5DB;
+      width: 30px;
+      height: 30px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .sidebar-close-btn:hover {
+      background: rgba(255, 255, 255, 0.14);
+      color: #FFFFFF;
+    }
+
+    .sidebar-nav-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.1rem 0.85rem;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.15) transparent;
+    }
+
+    .sidebar-section-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #6B7280;
+      padding: 0.85rem 0.75rem 0.45rem 0.75rem;
+    }
+
+    .nav-tabs-track {
+      display: flex;
+      flex-direction: column;
+      gap: 0.22rem;
+      list-style: none;
+    }
+
+    .nav-tab-button {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.68rem 0.8rem;
+      font-size: 0.84rem;
+      font-weight: 500;
+      color: #9CA3AF;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+    }
+
+    .nav-tab-button .nav-item-left {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+    }
+
+    .nav-tab-button i {
+      font-size: 0.98rem;
+      color: #6B7280;
+      transition: color 0.2s ease, transform 0.2s ease;
+    }
+
+    .nav-tab-button .nav-idx {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.66rem;
+      color: #4B5563;
+      transition: color 0.2s ease;
+    }
+
+    .nav-tab-button:hover {
+      color: #F9FAFB;
+      background: var(--bg-sidebar-hover);
+      transform: translateX(3px);
+    }
+
+    .nav-tab-button:hover i {
+      color: #D1D5DB;
+    }
+
+    .nav-tab-button.active {
+      color: #FFFFFF;
+      font-weight: 600;
+      background: var(--bg-sidebar-active);
+      border-color: rgba(255, 255, 255, 0.12);
+      box-shadow: inset 3px 0 0 #60A5FA;
+    }
+
+    .nav-tab-button.active i {
+      color: #93C5FD;
+    }
+
+    .nav-tab-button.active .nav-idx {
+      color: #93C5FD;
+    }
+
+    .sidebar-footer {
+      padding: 1rem 1.15rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(0, 0, 0, 0.25);
+      font-size: 0.74rem;
+      color: #9CA3AF;
+    }
+
+    .sidebar-footer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.35rem;
+    }
+
+    /* ─── Sticky Header with 3-Line Hamburger Button ───────────────────────── */
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      background: rgba(245, 244, 239, 0.86);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 0.85rem 2.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all 0.25s ease;
+    }
+
+    .header-left-cluster {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    /* 3-Horizontal-Lines Hamburger Button */
+    .hamburger-trigger-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      transition: all 0.22s ease;
+      box-shadow: 0 2px 6px rgba(18, 19, 22, 0.04);
+    }
+
+    .hamburger-trigger-btn:hover {
+      background: var(--text-heading);
+      border-color: var(--text-heading);
+      transform: translateY(-1px);
+    }
+
+    .hamburger-line {
+      width: 18px;
+      height: 1.8px;
+      background: var(--text-heading);
+      border-radius: 2px;
+      transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .hamburger-trigger-btn:hover .hamburger-line {
+      background: #FFFFFF;
+    }
+
+    body.sidebar-open .hamburger-trigger-btn .line-1 {
+      width: 14px;
+      transform: translateX(-2px);
+    }
+    body.sidebar-open .hamburger-trigger-btn .line-3 {
+      width: 11px;
+      transform: translateX(-3.5px);
+    }
+
+    .brand-cluster {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      background: var(--text-heading);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 1rem;
+    }
+
+    .brand-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-heading);
+    }
+
+    .brand-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: var(--text-subtle);
+      background: var(--bg-subtle);
+      padding: 0.18rem 0.55rem;
+      border-radius: 4px;
+      border: 1px solid var(--border-subtle);
+      margin-left: 0.35rem;
+    }
+
+    .active-section-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.28rem 0.75rem;
+      border-radius: var(--radius-pill);
+      background: rgba(18, 19, 22, 0.04);
+      border: 1px solid var(--border-subtle);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--text-subtle);
+    }
+
+    /* Telemetry Capsules */
+    .telemetry-row {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      flex-wrap: wrap;
+    }
+
+    .telemetry-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      padding: 0.35rem 0.9rem;
+      border-radius: var(--radius-pill);
+      font-size: 0.76rem;
+      color: var(--text-subtle);
+      font-weight: 500;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      position: relative;
+    }
+    .status-dot.green {
+      background: #15803D;
+      box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.15);
+    }
+    .status-dot.blue {
+      background: var(--accent-primary);
+      box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.14);
+    }
+
+    /* ─── Main Viewport & 3D Scroll Effects ────────────────────────────────── */
+    .main-canvas-area {
+      max-width: 1380px;
+      margin: 0 auto;
+      padding: var(--space-8) var(--space-6) var(--space-12) var(--space-6);
+      perspective: 1200px;
+    }
+
+    .panel-view-section {
+      display: none;
+      animation: panel3DReveal 0.48s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      transform-origin: center top;
+    }
+    .panel-view-section.active { display: block; }
+
+    @keyframes panel3DReveal {
+      from {
+        opacity: 0;
+        transform: translateY(22px) rotateX(4deg) scale(0.99);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) rotateX(0deg) scale(1);
+      }
+    }
+
+    /* Scroll-Triggered 3D Reveal Class */
+    .scroll-reveal-3d {
+      opacity: 0;
+      transform: translateY(32px) rotateX(7deg) scale(0.98);
+      transition: opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1), transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+      will-change: opacity, transform;
+    }
+
+    .scroll-reveal-3d.in-view {
+      opacity: 1;
+      transform: translateY(0) rotateX(0deg) scale(1);
+    }
+
+    /* Interactive 3D Tilt Cards */
+    .tilt-card-3d {
+      transform-style: preserve-3d;
+      transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tilt-card-3d::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(420px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(30, 58, 138, 0.055), transparent 60%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+    }
+
+    .tilt-card-3d:hover::after {
+      opacity: 1;
+    }
+
+    /* ─── Hero Section with 3D Crystalline Flight ──────────────────────────── */
+    .hero-editorial-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: var(--space-8);
+      align-items: center;
+      margin-bottom: var(--space-10);
+      min-height: 520px;
+    }
+
+    .hero-lead-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--accent-primary);
+      background: var(--accent-primary-subtle);
+      border: 1px solid rgba(37, 99, 235, 0.18);
+      padding: 0.35rem 0.85rem;
+      border-radius: var(--radius-pill);
+      margin-bottom: var(--space-4);
+    }
+
+    .hero-headline-massive {
+      font-size: 3.2rem;
+      font-weight: 800;
+      line-height: 1.12;
+      letter-spacing: -0.035em;
+      color: var(--text-heading);
+      margin-bottom: var(--space-4);
+    }
+
+    .hero-headline-massive span {
+      color: var(--text-muted);
+      font-weight: 400;
+      display: block;
+    }
+
+    .hero-paragraph {
+      font-size: 1.08rem;
+      color: var(--text-body);
+      line-height: 1.7;
+      margin-bottom: var(--space-6);
+      max-width: 620px;
+    }
+
+    .hero-button-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+    }
+
+    .btn-action-primary {
+      background: var(--text-heading);
+      color: #FFFFFF;
+      font-weight: 600;
+      font-size: 0.92rem;
+      padding: 0.8rem 1.6rem;
+      border-radius: var(--radius-sm);
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+    .btn-action-primary:hover {
+      background: #000000;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+    }
+
+    .btn-action-secondary {
+      background: var(--bg-surface);
+      color: var(--text-heading);
+      font-weight: 500;
+      font-size: 0.92rem;
+      padding: 0.8rem 1.5rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-strong);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+    }
+    .btn-action-secondary:hover {
+      border-color: var(--text-heading);
+      background: var(--bg-subtle);
+    }
+
+    /* 3D WebGL Canvas Box */
+    .viewport-3d-card {
+      width: 100%;
+      height: 480px;
+      position: relative;
+      background: radial-gradient(circle at center, #FFFFFF 0%, #FAFAF8 75%);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-soft);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #webgl-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: grab;
+    }
+    #webgl-canvas:active { cursor: grabbing; }
+
+    .canvas-hud-overlay {
+      position: absolute;
+      bottom: 1.25rem;
+      left: 1.25rem;
+      right: 1.25rem;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 0.85rem 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+      pointer-events: none;
+    }
+
+    /* ─── Guided 5-Step Process with Minimalist Connecting Arrows ──────────── */
+    .lifecycle-guide-section {
+      margin-top: var(--space-10);
+      margin-bottom: var(--space-10);
+      padding-top: var(--space-8);
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .guide-intro-header {
+      text-align: center;
+      max-width: 680px;
+      margin: 0 auto var(--space-8) auto;
+    }
+
+    .guide-intro-header h2 {
+      font-size: 1.95rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      color: var(--text-heading);
+      margin-bottom: var(--space-2);
+    }
+
+    .guide-intro-header p {
+      font-size: 0.98rem;
+      color: var(--text-body);
+    }
+
+    .workflow-track-arrows {
+      display: flex;
+      align-items: stretch;
+      gap: var(--space-2);
+      overflow-x: auto;
+      padding-bottom: var(--space-4);
+    }
+
+    .workflow-card-step {
+      flex: 1;
+      min-width: 230px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: var(--space-5) var(--space-4);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: var(--shadow-soft);
+      transition: all 0.25s ease;
+    }
+
+    .workflow-card-step:hover {
+      border-color: var(--border-strong);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-hover);
+    }
+
+    .step-number-pill {
+      width: 28px;
+      height: 28px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-heading);
+      margin-bottom: var(--space-4);
+    }
+
+    .step-name-heading {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text-heading);
+      margin-bottom: var(--space-2);
+      letter-spacing: -0.01em;
+    }
+
+    .step-description-text {
+      font-size: 0.84rem;
+      color: var(--text-body);
+      line-height: 1.6;
+      margin-bottom: var(--space-5);
+    }
+
+    .step-redirect-link {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--accent-primary);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 0;
+      margin-top: auto;
+      text-decoration: none;
+    }
+    .step-redirect-link:hover { text-decoration: underline; }
+
+    .arrow-divider {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 1.25rem;
+      padding: 0 0.2rem;
+      user-select: none;
+    }
+
+    /* ─── Metric KPI Strip ─────────────────────────────────────────────────── */
+    .metric-strip-cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-4);
+      margin-bottom: var(--space-6);
+    }
+
+    .kpi-tile {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: var(--space-5);
+      box-shadow: var(--shadow-soft);
+      transition: all 0.2s ease;
+    }
+    .kpi-tile:hover {
+      border-color: var(--border-strong);
+      box-shadow: var(--shadow-hover);
+    }
+
+    .kpi-label-caption {
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: var(--space-1);
+    }
+
+    .kpi-stat-number {
+      font-size: 2.3rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      color: var(--text-heading);
+      line-height: 1.1;
+      margin-bottom: var(--space-1);
+    }
+
+    .kpi-footnote {
+      font-size: 0.8rem;
+      color: var(--text-subtle);
+    }
+
+    /* ─── Clean Card Panels ────────────────────────────────────────────────── */
+    .split-layout-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: var(--space-6);
+      margin-bottom: var(--space-6);
+    }
+
+    .surface-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-6);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .card-headline-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: var(--space-4);
+      margin-bottom: var(--space-5);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .card-headline-bar h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-heading);
+      letter-spacing: -0.01em;
+    }
+
+    /* Form Inputs */
+    .field-block {
+      margin-bottom: var(--space-4);
+    }
+
+    .field-block label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-heading);
+      margin-bottom: var(--space-2);
+    }
+
+    .clean-text-box {
+      width: 100%;
+      background: var(--bg-input);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      padding: 0.75rem 1rem;
+      color: var(--text-heading);
+      font-size: 0.92rem;
+      font-family: inherit;
+      transition: border-color 0.2s ease;
+    }
+    .clean-text-box:focus {
+      outline: none;
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    .pill-filter-row {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: var(--space-4);
+    }
+
+    .chip-button {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-body);
+      padding: 0.35rem 0.85rem;
+      border-radius: var(--radius-pill);
+      font-size: 0.78rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .chip-button:hover {
+      border-color: var(--border-strong);
+      color: var(--text-heading);
+      background: #FFFFFF;
+    }
+
+    /* Results Vault */
+    .result-score-display {
+      background: #FAFAF8;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-md);
+      padding: var(--space-5);
+      display: none;
+      animation: fadeInSmooth 0.3s ease;
+    }
+
+    .score-banner-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: var(--space-4);
+      margin-bottom: var(--space-4);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .big-score-digit {
+      font-size: 3.6rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      color: var(--text-heading);
+    }
+
+    /* Table System */
+    .clean-data-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.88rem;
+    }
+
+    .clean-data-table th {
+      padding: 0.85rem 1rem;
+      font-size: 0.74rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .clean-data-table td {
+      padding: 1rem;
+      border-bottom: 1px solid var(--border-subtle);
+      color: var(--text-body);
+    }
+
+    .clean-data-table tr:hover td {
+      background: rgba(0, 0, 0, 0.015);
+    }
+
+    /* Severity Badges (Light Toned) */
+    .badge-soft {
+      display: inline-block;
+      padding: 0.25rem 0.65rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.74rem;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .badge-soft.CRITICAL { background: var(--sev-crit-bg); color: var(--sev-crit-text); border: 1px solid var(--sev-crit-border); }
+    .badge-soft.HIGH { background: var(--sev-high-bg); color: var(--sev-high-text); border: 1px solid var(--sev-high-border); }
+    .badge-soft.MEDIUM { background: var(--sev-med-bg); color: var(--sev-med-text); border: 1px solid var(--sev-med-border); }
+    .badge-soft.LOW { background: var(--sev-low-bg); color: var(--sev-low-text); border: 1px solid var(--sev-low-border); }
+
+    /* Toast Notification */
+    .toast-light {
+      position: fixed;
+      bottom: var(--space-6);
+      right: var(--space-6);
+      background: var(--text-heading);
+      color: #FFFFFF;
+      border-radius: var(--radius-md);
+      padding: 0.95rem 1.45rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+      font-size: 0.88rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      z-index: 99999;
+      animation: fadeInSmooth 0.25s ease;
+    }
+  </style>
+
+  <!-- Three.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body>
+<body class="sidebar-open">
 
-  <!-- Top Navigation Header -->
-  <header class="navbar">
-    <div class="brand-wrapper">
-      <div class="brand-icon">
-        <i class="bi bi-shield-lock-fill"></i>
+  <!-- ─── Top Architectural Scroll Progress Bar ────────────────────────────── -->
+  <div class="scroll-progress-track">
+    <div class="scroll-progress-bar" id="scrollProgressBar"></div>
+  </div>
+
+  <!-- ─── Backdrop for Mobile / Tablet Sidebar ─────────────────────────────── -->
+  <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar(false)"></div>
+
+  <!-- ─── Vertical Left Navigation Sidebar (Collapsible via 3-Line Menu) ───── -->
+  <aside class="vertical-sidebar" id="verticalSidebar" aria-label="Primary Navigation">
+    <div class="sidebar-top-bar">
+      <div class="sidebar-brand-group" onclick="switchTab('tab-home')">
+        <div class="sidebar-brand-emblem">
+          <i class="bi bi-shield-shaded"></i>
+        </div>
+        <div>
+          <span class="sidebar-brand-text">VulnPrioritize</span>
+          <span class="sidebar-brand-sub">MLOps Engine v2.4</span>
+        </div>
       </div>
-      <div class="brand-text">
-        <h1>Software Vulnerability Severity Classification &amp; Risk Prioritization</h1>
-        <span>Adaptive MLOps Enterprise Platform | Threat Intelligence &amp; SLA Automation</span>
+      <button class="sidebar-close-btn" onclick="toggleSidebar()" title="Collapse Sidebar (Esc)">
+        <i class="bi bi-layout-sidebar-inset"></i>
+      </button>
+    </div>
+
+    <div class="sidebar-nav-scroll">
+      <div class="sidebar-section-label">01 / Core Intelligence</div>
+      <ul class="nav-tabs-track">
+        <li>
+          <button class="nav-tab-button active" data-tab="tab-home" data-title="Platform Overview & Guide" onclick="switchTab('tab-home')">
+            <span class="nav-item-left"><i class="bi bi-compass"></i> Platform Overview</span>
+            <span class="nav-idx">01</span>
+          </button>
+        </li>
+        <li>
+          <button class="nav-tab-button" data-tab="tab-triage" data-title="Risk Triage Dashboard" onclick="switchTab('tab-triage')">
+            <span class="nav-item-left"><i class="bi bi-grid-1x2"></i> Risk Triage Dashboard</span>
+            <span class="nav-idx">02</span>
+          </button>
+        </li>
+        <li>
+          <button class="nav-tab-button" data-tab="tab-predict" data-title="Real-Time Risk Predictor" onclick="switchTab('tab-predict')">
+            <span class="nav-item-left"><i class="bi bi-lightning-charge"></i> Real-Time Predictor</span>
+            <span class="nav-idx">03</span>
+          </button>
+        </li>
+      </ul>
+
+      <div class="sidebar-section-label">02 / Active Defense &amp; Context</div>
+      <ul class="nav-tabs-track">
+        <li>
+          <button class="nav-tab-button" data-tab="tab-killchain" data-title="Threat Kill-Chain & Blast Radius" onclick="switchTab('tab-killchain')">
+            <span class="nav-item-left"><i class="bi bi-diagram-3"></i> Kill-Chain &amp; Blast Radius</span>
+            <span class="nav-idx">04</span>
+          </button>
+        </li>
+        <li>
+          <button class="nav-tab-button" data-tab="tab-playbook" data-title="Remediation Playbooks" onclick="switchTab('tab-playbook')">
+            <span class="nav-item-left"><i class="bi bi-code-slash"></i> Remediation Playbooks</span>
+            <span class="nav-idx">05</span>
+          </button>
+        </li>
+        <li>
+          <button class="nav-tab-button" data-tab="tab-repo" data-title="Vulnerability Repository" onclick="switchTab('tab-repo')">
+            <span class="nav-item-left"><i class="bi bi-database"></i> Vulnerability Catalog</span>
+            <span class="nav-idx">06</span>
+          </button>
+        </li>
+        <li>
+          <button class="nav-tab-button" data-tab="tab-assets" data-title="Asset Criticality Simulator" onclick="switchTab('tab-assets')">
+            <span class="nav-item-left"><i class="bi bi-building"></i> Asset Context Simulator</span>
+            <span class="nav-idx">07</span>
+          </button>
+        </li>
+      </ul>
+
+      <div class="sidebar-section-label">03 / MLOps &amp; Observability</div>
+      <ul class="nav-tabs-track">
+        <li>
+          <button class="nav-tab-button" data-tab="tab-mlops" data-title="MLOps Drift Observatory" onclick="switchTab('tab-mlops')">
+            <span class="nav-item-left"><i class="bi bi-activity"></i> Drift Observatory (PSI)</span>
+            <span class="nav-idx">08</span>
+          </button>
+        </li>
+        <li>
+          <button class="nav-tab-button" data-tab="tab-infra" data-title="Infrastructure Console" onclick="switchTab('tab-infra')">
+            <span class="nav-item-left"><i class="bi bi-hdd-network"></i> Infrastructure Console</span>
+            <span class="nav-idx">09</span>
+          </button>
+        </li>
+      </ul>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-footer-row">
+        <span>ZERO-LEAKAGE GUARD</span>
+        <span class="font-mono" style="color: #4ADE80; font-weight: 600;">ACTIVE</span>
+      </div>
+      <div class="sidebar-footer-row" style="margin-bottom: 0;">
+        <span>REGISTRY ALIAS</span>
+        <span class="font-mono" style="color: #93C5FD;">@champion</span>
       </div>
     </div>
-    <div class="nav-status">
-      <div class="badge-status">
-        <span class="dot online"></span> <i class="bi bi-hdd-network"></i> API Status: Online (v1.0)
+  </aside>
+
+  <!-- ─── Sticky Header with 3-Horizontal-Lines Menu Trigger ───────────────── -->
+  <header class="site-header">
+    <div class="header-left-cluster">
+      <button class="hamburger-trigger-btn" id="sidebarToggleBtn" onclick="toggleSidebar()" aria-label="Toggle Navigation Sidebar" title="Toggle Navigation Sidebar">
+        <span class="hamburger-line line-1"></span>
+        <span class="hamburger-line line-2"></span>
+        <span class="hamburger-line line-3"></span>
+      </button>
+
+      <div class="brand-cluster" onclick="switchTab('tab-home')">
+        <div class="brand-mark">
+          <i class="bi bi-shield-check"></i>
+        </div>
+        <div>
+          <span class="brand-title">VulnPrioritize</span>
+          <span class="brand-tag">MLOps v2.4</span>
+        </div>
       </div>
-      <div class="badge-status" id="mlflowVersionBadge">
-        <span class="dot sync"></span> <i class="bi bi-cpu-fill"></i> Model: XGBoost v2.4
+
+      <span class="active-section-pill" id="activeSectionBreadcrumb">
+        <i class="bi bi-terminal"></i> <span id="activeSectionLabel">01 / Platform Overview</span>
+      </span>
+    </div>
+
+    <div class="telemetry-row">
+      <div class="telemetry-chip">
+        <span class="status-dot green"></span>
+        <span>FASTAPI:</span>
+        <span class="font-mono" id="apiLatencyText" style="color: #15803D; font-weight: 600;">14ms</span>
       </div>
-      <div class="badge-status">
-        <span class="dot online"></span> <i class="bi bi-activity"></i> Drift: Nominal (PSI &lt; 0.2)
+      <div class="telemetry-chip">
+        <span class="status-dot blue"></span>
+        <span id="modelChampionText">MODEL: Calibrated LightGBM</span>
+      </div>
+      <div class="telemetry-chip">
+        <span class="status-dot green"></span>
+        <span id="driftStatusText">DRIFT: Nominal (PSI &lt; 0.20)</span>
       </div>
     </div>
   </header>
 
-  <div class="container">
-    <!-- Top KPI Ribbon -->
-    <div class="metrics-grid">
-      <div class="metric-card">
-        <div class="metric-header-row">
-          <span class="metric-title">Total Ingested CVEs</span>
-          <div class="metric-icon-bubble"><i class="bi bi-database-fill-down"></i></div>
-        </div>
-        <div class="metric-value" id="kpiTotalCves">246,819</div>
-        <div class="metric-sub"><i class="bi bi-arrow-up-right-circle-fill"></i> +1,420 synced today (NVD 2.0 API)</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-header-row">
-          <span class="metric-title">Critical &amp; High Risk CVEs</span>
-          <div class="metric-icon-bubble"><i class="bi bi-exclamation-triangle-fill"></i></div>
-        </div>
-        <div class="metric-value" id="kpiHighRisk">48,210</div>
-        <div class="metric-sub"><i class="bi bi-clock-history"></i> 19.5% require immediate SLA action</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-header-row">
-          <span class="metric-title">ML Champion Macro F1</span>
-          <div class="metric-icon-bubble"><i class="bi bi-check-circle-fill"></i></div>
-        </div>
-        <div class="metric-value" id="kpiMacroF1">0.894</div>
-        <div class="metric-sub"><i class="bi bi-shield-check"></i> Quality Gate Passed (&ge; 0.82)</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-header-row">
-          <span class="metric-title">Inference Latency (p95)</span>
-          <div class="metric-icon-bubble"><i class="bi bi-speedometer2"></i></div>
-        </div>
-        <div class="metric-value" id="kpiLatency">18.4ms</div>
-        <div class="metric-sub"><i class="bi bi-lightning-fill"></i> SLA Compliant (&lt; 50ms)</div>
-      </div>
-    </div>
+  <!-- ─── Main Content Viewport ────────────────────────────────────────────── -->
+  <main class="main-canvas-area">
 
-    <!-- Main Section Tabs Navigation -->
-    <div class="tabs-nav">
-      <button class="tab-btn active" data-tab="tab-overview"><i class="bi bi-bar-chart-line-fill"></i> Overview &amp; SOC Dashboard</button>
-      <button class="tab-btn" data-tab="tab-explorer"><i class="bi bi-search"></i> Vulnerability Intelligence Explorer</button>
-      <button class="tab-btn" data-tab="tab-predict"><i class="bi bi-lightning-charge-fill"></i> Live Severity &amp; Risk Predictor</button>
-      <button class="tab-btn" data-tab="tab-assets"><i class="bi bi-building-fill"></i> Enterprise Asset Risk Manager</button>
-      <button class="tab-btn" data-tab="tab-mlops"><i class="bi bi-graph-up-arrow"></i> MLOps &amp; Statistical Drift Monitor</button>
-      <button class="tab-btn" data-tab="tab-architecture"><i class="bi bi-diagram-3-fill"></i> System Architecture &amp; Data Flow</button>
-    </div>
-
-    <!-- Page 1: Overview & SOC Dashboard -->
-    <div id="tab-overview" class="tab-pane active">
-      <div class="dashboard-grid">
-        <div class="card">
-          <div class="card-header">
-            <h2 class="card-title"><i class="bi bi-shield-fill-exclamation"></i> High Priority Threat Alerts &amp; Urgent SLAs</h2>
+    <!-- =========================================================================
+         TAB 1: Platform Overview (3D Gyroscopic Topology & Guided User Manual)
+         ========================================================================= -->
+    <section id="tab-home" class="panel-view-section active">
+      <div class="hero-editorial-grid">
+        <div>
+          <div class="hero-lead-badge">
+            <i class="bi bi-cpu"></i> Zero Data Leakage Architecture
           </div>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>CVE ID</th>
-                  <th>Severity Label</th>
-                  <th>CISA KEV</th>
-                  <th>EPSS Score</th>
-                  <th>Risk Score</th>
-                  <th>Remediation SLA</th>
-                </tr>
-              </thead>
-              <tbody id="overviewAlertsTable">
-                <tr>
-                  <td><code>CVE-2021-44228</code></td>
-                  <td><span class="priority-badge CRITICAL">CRITICAL</span></td>
-                  <td><span class="tag-kev"><i class="bi bi-fire"></i> ACTIVE KEV</span></td>
-                  <td>97.5%</td>
-                  <td><strong style="color: var(--critical);">96.8 / 100</strong></td>
-                  <td><span class="sla-urgent"><i class="bi bi-alarm-fill"></i> 24 Hours (URGENT)</span></td>
-                </tr>
-                <tr>
-                  <td><code>CVE-2023-38606</code></td>
-                  <td><span class="priority-badge HIGH">HIGH</span></td>
-                  <td><span class="tag-kev"><i class="bi bi-fire"></i> ACTIVE KEV</span></td>
-                  <td>81.2%</td>
-                  <td><strong style="color: var(--high);">84.2 / 100</strong></td>
-                  <td><span class="sla-urgent"><i class="bi bi-alarm-fill"></i> 72 Hours</span></td>
-                </tr>
-                <tr>
-                  <td><code>CVE-2024-21626</code></td>
-                  <td><span class="priority-badge HIGH">HIGH</span></td>
-                  <td><span class="tag-none"><i class="bi bi-shield"></i> No KEV</span></td>
-                  <td>45.0%</td>
-                  <td><strong style="color: var(--medium);">68.5 / 100</strong></td>
-                  <td><span>7 Days</span></td>
-                </tr>
-                <tr>
-                  <td><code>CVE-2024-1002</code></td>
-                  <td><span class="priority-badge LOW">LOW</span></td>
-                  <td><span class="tag-none"><i class="bi bi-shield"></i> No KEV</span></td>
-                  <td>1.2%</td>
-                  <td><strong style="color: var(--low);">18.4 / 100</strong></td>
-                  <td><span>30 Days</span></td>
-                </tr>
-              </tbody>
-            </table>
+          <h1 class="hero-headline-massive">
+            Early Vulnerability Severity &amp;
+            <span class="serif-italic">Contextual Risk Prioritization.</span>
+          </h1>
+          <p class="hero-paragraph">
+            Triage newly disclosed zero-days immediately without waiting for post-publication CVSS vectors. Our platform evaluates early disclosure symptoms, fusing calibrated LightGBM predictions with real-world threat feeds (CISA KEV, EPSS) and asset exposure.
+          </p>
+          <div class="hero-button-row">
+            <button class="btn-action-primary" onclick="switchTab('tab-predict')">
+              Launch Live Predictor <i class="bi bi-arrow-right"></i>
+            </button>
+            <button class="btn-action-secondary" onclick="switchTab('tab-triage')">
+              Open Triage Dashboard <i class="bi bi-bar-chart"></i>
+            </button>
+            <button class="btn-action-secondary" onclick="scrollToGuide()">
+              View Operational Guide ↓
+            </button>
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-header">
-            <h2 class="card-title"><i class="bi bi-pie-chart-fill"></i> Enterprise Vulnerability Severity Distribution</h2>
+        <!-- 3D Crystalline Flight Canvas Box -->
+        <div class="viewport-3d-card">
+          <canvas id="webgl-canvas"></canvas>
+          <div class="canvas-hud-overlay">
+            <div>
+              <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">3D Threat Topology Engine</span>
+              <strong style="display: block; font-size: 0.88rem; color: var(--text-heading);" id="canvasPhaseText">Hour-Zero Vector Synthesis</strong>
+            </div>
+            <span class="badge-soft LOW" id="canvasStatusBadge">ROTATING TOPOLOGY</span>
           </div>
-          <div style="max-height: 280px; display: flex; justify-content: center;">
+        </div>
+      </div>
+
+      <!-- ─── GUIDED 5-STEP PROCESS WITH CLEAN ARROWS ─── -->
+      <div class="lifecycle-guide-section" id="howItWorksSection">
+        <div class="guide-intro-header">
+          <h2>Operational Architecture &amp; User Manual</h2>
+          <p>
+            Follow the 5-stage lifecycle below to understand how an unrated zero-day vulnerability flows through our MLOps scoring engine from ingestion to automated SLA dispatch.
+          </p>
+        </div>
+
+        <div class="workflow-track-arrows">
+          <!-- Step 1 -->
+          <div class="workflow-card-step">
+            <div>
+              <div class="step-number-pill">1</div>
+              <h3 class="step-name-heading">Hour-Zero Ingestion</h3>
+              <p class="step-description-text">
+                Raw disclosure texts and CWE category IDs are ingested from NVD, CISA KEV, and FIRST EPSS via automated Apache Airflow pipelines into Parquet feature stores.
+              </p>
+            </div>
+            <button class="step-redirect-link" onclick="switchTab('tab-repo')">
+              Browse CVE Catalog →
+            </button>
+          </div>
+
+          <div class="arrow-divider">➔</div>
+
+          <!-- Step 2 -->
+          <div class="workflow-card-step">
+            <div>
+              <div class="step-number-pill">2</div>
+              <h3 class="step-name-heading">Zero-Leakage ML</h3>
+              <p class="step-description-text">
+                Calibrated LightGBM predicts Base Severity (Critical, High, Medium, Low) strictly from symptoms available at hour-zero, avoiding post-publication CVSS vector leakage.
+              </p>
+            </div>
+            <button class="step-redirect-link" onclick="switchTab('tab-predict')">
+              Run ML Predictor →
+            </button>
+          </div>
+
+          <div class="arrow-divider">➔</div>
+
+          <!-- Step 3 -->
+          <div class="workflow-card-step">
+            <div>
+              <div class="step-number-pill">3</div>
+              <h3 class="step-name-heading">Threat Intel Fusion</h3>
+              <p class="step-description-text">
+                The engine correlates active weaponization feeds: checking if the CVE is in CISA KEV (active exploit) and factoring in 30-day EPSS weaponization probability.
+              </p>
+            </div>
+            <button class="step-redirect-link" onclick="switchTab('tab-triage')">
+              View Threat Feed →
+            </button>
+          </div>
+
+          <div class="arrow-divider">➔</div>
+
+          <!-- Step 4 -->
+          <div class="workflow-card-step">
+            <div>
+              <div class="step-number-pill">4</div>
+              <h3 class="step-name-heading">Contextual Risk Scorer</h3>
+              <p class="step-description-text">
+                The 6-factor composite formula blends ML severity, exploit odds, asset reachability, and criticality multiplier to produce an actionable 0–100 business risk score.
+              </p>
+            </div>
+            <button class="step-redirect-link" onclick="switchTab('tab-assets')">
+              Simulate Assets →
+            </button>
+          </div>
+
+          <div class="arrow-divider">➔</div>
+
+          <!-- Step 5 -->
+          <div class="workflow-card-step">
+            <div>
+              <div class="step-number-pill">5</div>
+              <h3 class="step-name-heading">SLA &amp; Containment</h3>
+              <p class="step-description-text">
+                Automated dispatch maps high scores to 24-hour war-room SLAs, generates perimeter WAF playbooks, and feeds telemetry into Prometheus and Grafana dashboards.
+              </p>
+            </div>
+            <button class="step-redirect-link" onclick="switchTab('tab-playbook')">
+              View Playbooks →
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 2: Risk Triage Dashboard
+         ========================================================================= -->
+    <section id="tab-triage" class="panel-view-section">
+      <!-- 4 KPI Metrics -->
+      <div class="metric-strip-cards">
+        <div class="kpi-tile">
+          <div class="kpi-label-caption">Monitored Disclosures</div>
+          <div class="kpi-stat-number" id="kpiTotalCves">300</div>
+          <div class="kpi-footnote">Parquet feature store entries</div>
+        </div>
+
+        <div class="kpi-tile">
+          <div class="kpi-label-caption">Critical &amp; High Priority</div>
+          <div class="kpi-stat-number" id="kpiHighRisk" style="color: #DC2626;">179</div>
+          <div class="kpi-footnote">Immediate triage required</div>
+        </div>
+
+        <div class="kpi-tile">
+          <div class="kpi-label-caption">Holdout Macro F1</div>
+          <div class="kpi-stat-number" id="kpiMacroF1" style="color: #16A34A;">0.894</div>
+          <div class="kpi-footnote">Zero-leakage cross-validation</div>
+        </div>
+
+        <div class="kpi-tile">
+          <div class="kpi-label-caption">P95 Inference Latency</div>
+          <div class="kpi-stat-number" id="kpiLatency" style="color: var(--accent-primary);">18.4ms</div>
+          <div class="kpi-footnote">FastAPI async benchmark</div>
+        </div>
+      </div>
+
+      <!-- Dual Charts -->
+      <div class="split-layout-grid">
+        <div class="surface-card">
+          <div class="card-headline-bar">
+            <h3>Severity Classification Mix</h3>
+            <span class="badge-soft LOW">DATASET DISTRIBUTION</span>
+          </div>
+          <div style="height: 260px; position: relative;">
             <canvas id="overviewPieChart"></canvas>
           </div>
         </div>
-      </div>
-    </div>
 
-    <!-- Page 2: Vulnerability Intelligence Explorer -->
-    <div id="tab-explorer" class="tab-pane">
-      <div class="card">
-        <div class="card-header" style="flex-wrap: wrap; gap: 1rem;">
-          <h2 class="card-title"><i class="bi bi-search"></i> Searchable CVE Intelligence Database</h2>
-          <div class="filter-controls" style="display: flex; gap: 0.75rem; align-items: center;">
-            <input type="text" id="explorerSearch" placeholder="Search by CVE ID, keyword, or vendor..." style="width: 280px; display: inline-block;">
-            <select id="explorerSeverity" style="width: 150px; display: inline-block;">
-              <option value="ALL">All Severities</option>
-              <option value="CRITICAL">CRITICAL Only</option>
-              <option value="HIGH">HIGH Only</option>
-              <option value="MEDIUM">MEDIUM Only</option>
-              <option value="LOW">LOW Only</option>
-            </select>
-            <button id="explorerRefreshBtn" class="btn-primary" style="width: auto; padding: 0.65rem 1rem;"><i class="bi bi-arrow-repeat"></i> Sync Records</button>
+        <div class="surface-card">
+          <div class="card-headline-bar">
+            <h3>Dataset Breakdown</h3>
+            <button class="chip-button" onclick="fetchStatsOverview()"><i class="bi bi-arrow-repeat"></i> Sync Live</button>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 1rem; margin-top: 0.5rem;">
+            <div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                <span style="color: #DC2626; font-weight: 600;">CRITICAL SEVERITY</span>
+                <span id="distCritCount" class="font-mono">11 CVEs</span>
+              </div>
+              <div style="height: 6px; background: var(--bg-subtle); border-radius: 4px; overflow: hidden;">
+                <div style="width: 3.7%; height: 100%; background: #DC2626;"></div>
+              </div>
+            </div>
+
+            <div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                <span style="color: #EA580C; font-weight: 600;">HIGH SEVERITY</span>
+                <span id="distHighCount" class="font-mono">62 CVEs</span>
+              </div>
+              <div style="height: 6px; background: var(--bg-subtle); border-radius: 4px; overflow: hidden;">
+                <div style="width: 20.7%; height: 100%; background: #EA580C;"></div>
+              </div>
+            </div>
+
+            <div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                <span style="color: #D97706; font-weight: 600;">MEDIUM SEVERITY</span>
+                <span id="distMedCount" class="font-mono">222 CVEs</span>
+              </div>
+              <div style="height: 6px; background: var(--bg-subtle); border-radius: 4px; overflow: hidden;">
+                <div style="width: 74.0%; height: 100%; background: #D97706;"></div>
+              </div>
+            </div>
+
+            <div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                <span style="color: #16A34A; font-weight: 600;">LOW SEVERITY</span>
+                <span id="distLowCount" class="font-mono">5 CVEs</span>
+              </div>
+              <div style="height: 6px; background: var(--bg-subtle); border-radius: 4px; overflow: hidden;">
+                <div style="width: 1.7%; height: 100%; background: #16A34A;"></div>
+              </div>
+            </div>
           </div>
         </div>
+      </div>
 
-        <div class="table-container">
-          <table>
+      <!-- Triage Queue Table -->
+      <div class="surface-card">
+        <div class="card-headline-bar">
+          <h3>Active Urgent Threat Triage Queue</h3>
+          <span class="badge-soft HIGH">SLA DISPATCH FEED</span>
+        </div>
+        <div style="overflow-x: auto;">
+          <table class="clean-data-table">
             <thead>
               <tr>
-                <th>CVE ID</th>
-                <th>Vendor / Product</th>
-                <th>CWE</th>
-                <th>Predicted Severity</th>
-                <th>CVSS Score</th>
-                <th>CISA KEV</th>
-                <th>EPSS Prob</th>
-                <th>Actions</th>
+                <th>Vulnerability ID</th>
+                <th>Base Severity</th>
+                <th>CISA KEV Status</th>
+                <th>EPSS Probability</th>
+                <th>Composite Risk Score</th>
+                <th>Remediation SLA</th>
               </tr>
             </thead>
-            <tbody id="explorerTableBody">
-              <tr>
-                <td colspan="8" style="text-align: center; color: var(--text-secondary);">Loading vulnerabilities from database...</td>
-              </tr>
+            <tbody id="overviewAlertsTableBody">
+              <!-- Live populated by API -->
             </tbody>
           </table>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- Page 3: Live Severity & Risk Predictor -->
-    <div id="tab-predict" class="tab-pane">
-      <div class="dashboard-grid">
+    <!-- =========================================================================
+         TAB 3: Real-Time Risk Predictor
+         ========================================================================= -->
+    <section id="tab-predict" class="panel-view-section">
+      <div class="split-layout-grid">
         <!-- Input Form -->
-        <div class="card">
-          <div class="card-header">
-            <h2 class="card-title"><i class="bi bi-sliders"></i> Vulnerability Telemetry &amp; Asset Context</h2>
+        <div class="surface-card">
+          <div class="card-headline-bar">
+            <h3>Hour-Zero Vulnerability Input</h3>
+            <span class="badge-soft LOW">FASTAPI ENGINE</span>
           </div>
-          <form id="predictionForm">
-            <div class="form-group">
-              <label for="cve_desc">Vulnerability Description / Advisory Text</label>
-              <textarea id="cve_desc" rows="3" placeholder="Paste CVE advisory text...">Apache Log4j2 2.0-beta9 through 2.14.1 JNDI features allow unauthenticated remote code execution via LDAP and RMI lookups.</textarea>
+
+          <div class="field-block">
+            <label>Load Historical Incident Presets</label>
+            <div class="pill-filter-row">
+              <button class="chip-button" onclick="loadPreset('log4j')">Log4Shell (RCE)</button>
+              <button class="chip-button" onclick="loadPreset('moveit')">MOVEit (SQLi)</button>
+              <button class="chip-button" onclick="loadPreset('citrix')">Citrix Bleed (Auth)</button>
+              <button class="chip-button" onclick="loadPreset('spring')">Spring4Shell (JDK)</button>
+              <button class="chip-button" onclick="loadPreset('runc')">runc Breakout</button>
+            </div>
+          </div>
+
+          <form id="predictionForm" onsubmit="handlePredictionSubmit(event)">
+            <div class="field-block">
+              <label>CVE Identifier</label>
+              <input type="text" id="cve_id_input" class="clean-text-box font-mono" value="CVE-2026-LIVE" required>
             </div>
 
-            <div class="form-row">
-              <div class="form-group">
-                <label for="attack_vector">Attack Vector (AV)</label>
-                <select id="attack_vector">
-                  <option value="NETWORK" selected>NETWORK (Remote / Public)</option>
-                  <option value="ADJACENT_NETWORK">ADJACENT NETWORK</option>
-                  <option value="LOCAL">LOCAL</option>
-                  <option value="PHYSICAL">PHYSICAL</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="attack_complexity">Attack Complexity (AC)</label>
-                <select id="attack_complexity">
-                  <option value="LOW" selected>LOW (Trivial execution)</option>
-                  <option value="HIGH">HIGH (Complex prerequisites)</option>
-                </select>
-              </div>
+            <div class="field-block">
+              <label>Raw Early Disclosure Description (Symptoms Only)</label>
+              <textarea id="cve_desc" rows="4" class="clean-text-box" style="resize: vertical;" required placeholder="Describe zero-hour vulnerability symptoms, attack mechanisms, and CWE flaws without post-publication CVSS submetrics..."></textarea>
             </div>
 
-            <div class="form-row">
-              <div class="form-group">
-                <label for="privileges_required">Privileges Required (PR)</label>
-                <select id="privileges_required">
-                  <option value="NONE" selected>NONE (Unauthenticated)</option>
-                  <option value="LOW">LOW (Basic user)</option>
-                  <option value="HIGH">HIGH (Admin/Root)</option>
-                </select>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+              <div class="field-block">
+                <label>EPSS 30-Day Probability (0.01 - 1.0)</label>
+                <input type="number" step="0.001" min="0" max="1" id="epss_score" class="clean-text-box font-mono" value="0.950">
               </div>
-              <div class="form-group">
-                <label for="user_interaction">User Interaction (UI)</label>
-                <select id="user_interaction">
-                  <option value="NONE" selected>NONE (Zero-click attack)</option>
-                  <option value="REQUIRED">REQUIRED (Victim interaction)</option>
+
+              <div class="field-block">
+                <label>Asset Criticality Weight</label>
+                <select id="asset_crit" class="clean-text-box">
+                  <option value="1.3">Tier 0: Mission-Critical Core (1.3x)</option>
+                  <option value="1.1" selected>Tier 1: Customer-Facing (1.1x)</option>
+                  <option value="0.9">Tier 2: Internal Operations (0.9x)</option>
+                  <option value="0.6">Tier 3: Isolated Staging (0.6x)</option>
                 </select>
               </div>
             </div>
 
-            <div class="form-row">
-              <div class="form-group">
-                <label for="epss_score">EPSS Exploitation Probability (0.0 - 1.0)</label>
-                <input type="number" id="epss_score" min="0" max="1" step="0.01" value="0.97">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: center;">
+              <div class="field-block">
+                <label>Network Exposure</label>
+                <select id="asset_exp" class="clean-text-box">
+                  <option value="INTERNET_FACING" selected>Public Internet Facing (1.0x)</option>
+                  <option value="INTERNAL_RESTRICTED">Internal Restricted (0.5x)</option>
+                  <option value="ISOLATED_AIRGAP">Air-Gapped / Isolated (0.1x)</option>
+                </select>
               </div>
-              <div class="form-group">
-                <label>CISA KEV Catalog Status</label>
-                <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.35rem;">
-                  <input type="checkbox" id="is_cisa_kev" checked style="width: 20px; height: 20px;">
-                  <span style="font-size: 0.85rem;">Actively Exploited in the Wild</span>
-                </div>
+
+              <div class="field-block" style="padding-top: 1.1rem;">
+                <label style="display: flex; align-items: center; gap: 0.65rem; cursor: pointer;">
+                  <input type="checkbox" id="is_cisa_kev" style="width: 16px; height: 16px; accent-color: #DC2626;" checked>
+                  <span style="color: var(--text-heading); font-size: 0.88rem;">Cataloged in CISA KEV (Exploited)</span>
+                </label>
               </div>
             </div>
 
-            <div class="form-row">
-              <div class="form-group">
-                <label for="asset_crit">Organizational Asset Criticality</label>
-                <select id="asset_crit">
-                  <option value="1.3">Tier 1: Core Database &amp; Payment Gateway (1.3x)</option>
-                  <option value="1.1" selected>Tier 2: Business SaaS Application (1.1x)</option>
-                  <option value="0.8">Tier 3: Internal Dev / Staging Environment (0.8x)</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="asset_exp">Asset Network Exposure</label>
-                <select id="asset_exp">
-                  <option value="INTERNET_FACING" selected>Public Internet-Facing</option>
-                  <option value="INTERNAL_RESTRICTED">Internal Restricted / VPN</option>
-                  <option value="AIR_GAPPED">Air-Gapped Network</option>
-                </select>
-              </div>
-            </div>
-
-            <button type="submit" id="predictBtn" class="btn-primary">
-              <i class="bi bi-cpu-fill"></i> Compute Stage 1 ML &amp; Stage 2 Risk Score
+            <button type="submit" id="predictBtn" class="btn-action-primary" style="width: 100%; justify-content: center; margin-top: 0.75rem;">
+              Compute ML Severity &amp; Risk Score <i class="bi bi-arrow-right"></i>
             </button>
           </form>
         </div>
 
-        <!-- Output Display -->
-        <div class="card">
-          <div class="card-header">
-            <h2 class="card-title"><i class="bi bi-bullseye"></i> Model Prediction &amp; SHAP Decomposition</h2>
+        <!-- Result Vault -->
+        <div>
+          <div id="predictionResults" class="result-score-display">
+            <div class="score-banner-row">
+              <div>
+                <span style="font-size: 0.74rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Composite Risk Score</span>
+                <div class="big-score-digit" id="riskScoreNum">94.8</div>
+                <span id="riskTierBadge" class="badge-soft CRITICAL">CRITICAL_RISK</span>
+              </div>
+              <div style="text-align: right;">
+                <span style="font-size: 0.74rem; color: var(--text-muted); text-transform: uppercase;">ML Champion Class</span>
+                <strong style="color: var(--text-heading); font-size: 1.25rem; display: block;" id="resMlSev">CRITICAL</strong>
+              </div>
+            </div>
+
+            <!-- SLA Banner -->
+            <div id="slaNotice" style="background: var(--sev-crit-bg); border: 1px solid var(--sev-crit-border); border-radius: var(--radius-sm); padding: 0.85rem 1.1rem; color: var(--sev-crit-text); font-weight: 600; font-size: 0.88rem; margin-bottom: 1.4rem;">
+              Required SLA: 24 Hours (URGENT WAR-ROOM MITIGATION)
+            </div>
+
+            <!-- Breakdown Bars -->
+            <div style="margin-bottom: 1.4rem;">
+              <span style="font-size: 0.78rem; font-weight: 600; color: var(--text-subtle); text-transform: uppercase; display: block; margin-bottom: 0.85rem;">
+                6-Factor Formula Contributions
+              </span>
+
+              <div style="margin-bottom: 0.75rem;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.25rem;">
+                  <span>ML Base Severity (30% weight)</span>
+                  <span id="mlSevVal" class="font-mono">24.0 / 30</span>
+                </div>
+                <div style="height: 6px; background: var(--bg-subtle); border-radius: 4px; overflow: hidden;">
+                  <div id="mlSevFill" style="width: 80%; height: 100%; background: var(--accent-primary);"></div>
+                </div>
+              </div>
+
+              <div style="margin-bottom: 0.75rem;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.25rem;">
+                  <span>CISA KEV Exploitation (25% weight)</span>
+                  <span id="kevVal" class="font-mono">25.0 / 25</span>
+                </div>
+                <div style="height: 6px; background: var(--bg-subtle); border-radius: 4px; overflow: hidden;">
+                  <div id="kevFill" style="width: 100%; height: 100%; background: #DC2626;"></div>
+                </div>
+              </div>
+
+              <div style="margin-bottom: 0.75rem;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.25rem;">
+                  <span>EPSS 30-Day Probability (20% weight)</span>
+                  <span id="epssVal" class="font-mono">19.0 / 20</span>
+                </div>
+                <div style="height: 6px; background: var(--bg-subtle); border-radius: 4px; overflow: hidden;">
+                  <div id="epssFill" style="width: 95%; height: 100%; background: #D97706;"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Explainability Tags -->
+            <div>
+              <span style="font-size: 0.78rem; font-weight: 600; color: var(--text-subtle); text-transform: uppercase; display: block; margin-bottom: 0.5rem;">
+                Top Model Feature Attributions
+              </span>
+              <div id="shapList"></div>
+            </div>
           </div>
 
-          <div id="predictionResults" class="result-box" style="display: block;">
-            <div class="score-display">
-              <div>
-                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.2rem;">Composite Risk Score (0-100)</div>
-                <div class="score-num" id="riskScoreNum">96.8</div>
-              </div>
-              <div>
-                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.2rem;">Actionable SLA Tier</div>
-                <div class="priority-badge CRITICAL" id="riskTierBadge">CRITICAL_RISK</div>
-              </div>
+          <!-- Empty State -->
+          <div id="predictEmptyNotice" class="surface-card" style="text-align: center; padding: 4rem 2rem;">
+            <i class="bi bi-cpu" style="font-size: 2.5rem; color: var(--text-muted); margin-bottom: 1rem; display: block;"></i>
+            <h3 style="color: var(--text-heading); font-size: 1.1rem; margin-bottom: 0.4rem;">Model Ready for Inference</h3>
+            <p style="color: var(--text-body); font-size: 0.88rem; max-width: 320px; margin: 0 auto 1.5rem auto;">
+              Click any incident preset above to load realistic disclosure symptoms and compute risk weights.
+            </p>
+            <button class="chip-button" onclick="loadPreset('log4j')">Load Log4Shell Preset</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 4: Kill-Chain & Blast Radius
+         ========================================================================= -->
+    <section id="tab-killchain" class="panel-view-section">
+      <div class="surface-card">
+        <div class="card-headline-bar">
+          <div>
+            <h3>MITRE ATT&amp;CK Adversarial Kill Chain &amp; Lateral Blast Radius</h3>
+            <p style="font-size: 0.85rem; color: var(--text-body); margin-top: 0.25rem;">
+              Simulating exploit weaponization trajectory across enterprise network boundaries.
+            </p>
+          </div>
+          <button class="btn-action-primary" onclick="simulateBlastContainment()">
+            Simulate Emergency Containment <i class="bi bi-shield-check"></i>
+          </button>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem; margin-top: 1.5rem;">
+          <div class="surface-card" style="border-color: var(--sev-crit-border); background: var(--sev-crit-bg);">
+            <span style="font-size: 0.7rem; font-weight: 700; color: var(--sev-crit-text); text-transform: uppercase;">Phase 1 • Initial Access</span>
+            <h4 style="color: var(--text-heading); margin: 0.4rem 0;">Perimeter Gateway</h4>
+            <p style="font-size: 0.8rem; color: var(--text-body);">CVE exploit payload injected into HTTP request header.</p>
+            <div style="margin-top: 1rem; color: var(--sev-crit-text); font-weight: 700; font-size: 0.78rem;">EXPLOIT ACTIVE</div>
+          </div>
+
+          <div class="surface-card" style="border-color: var(--sev-crit-border); background: var(--sev-crit-bg);">
+            <span style="font-size: 0.7rem; font-weight: 700; color: var(--sev-crit-text); text-transform: uppercase;">Phase 2 • Execution</span>
+            <h4 style="color: var(--text-heading); margin: 0.4rem 0;">Application Runtime</h4>
+            <p style="font-size: 0.8rem; color: var(--text-body);">Arbitrary code execution triggered via lookup injection.</p>
+            <div style="margin-top: 1rem; color: var(--sev-crit-text); font-weight: 700; font-size: 0.78rem;">SHELL SPAWNED</div>
+          </div>
+
+          <div class="surface-card" id="node3">
+            <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Phase 3 • Lateral Movement</span>
+            <h4 style="color: var(--text-heading); margin: 0.4rem 0;">Internal Service Mesh</h4>
+            <p style="font-size: 0.8rem; color: var(--text-body);">Service credentials harvested for database traversal.</p>
+            <div style="margin-top: 1rem; color: #D97706; font-weight: 700; font-size: 0.78rem;" id="node3Status">AT RISK (UNCONTAINED)</div>
+          </div>
+
+          <div class="surface-card" id="node4">
+            <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Phase 4 • Exfiltration</span>
+            <h4 style="color: var(--text-heading); margin: 0.4rem 0;">Isolated Database Vault</h4>
+            <p style="font-size: 0.8rem; color: var(--text-body);">Encrypted customer records and operational database.</p>
+            <div style="margin-top: 1rem; color: #D97706; font-weight: 700; font-size: 0.78rem;" id="node4Status">THREAT AT BOUNDARY</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 5: Remediation Playbooks
+         ========================================================================= -->
+    <section id="tab-playbook" class="panel-view-section">
+      <div class="surface-card">
+        <div class="card-headline-bar">
+          <div>
+            <h3>Automated Zero-Day Hardening &amp; Mitigation Playbooks</h3>
+            <p style="font-size: 0.85rem; color: var(--text-body); margin-top: 0.25rem;">
+              Perimeter WAF rules and runtime overrides ready for immediate deployment.
+            </p>
+          </div>
+          <span class="badge-soft HIGH">SURGICAL DEFENSE</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+          <div>
+            <h4 style="font-size: 0.95rem; color: var(--text-heading); margin-bottom: 0.35rem;">1. Cloudflare / ModSecurity WAF Filter</h4>
+            <p style="font-size: 0.82rem; color: var(--text-body); margin-bottom: 0.75rem;">Block exploit lookup vectors at edge ingress.</p>
+            <div style="background: #FAFAF8; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 1rem; font-family: 'JetBrains Mono'; font-size: 0.82rem; color: #166534; position: relative;">
+              <button class="chip-button" style="position: absolute; top: 0.6rem; right: 0.6rem;" onclick="copySnippet('wafSnippet')">Copy</button>
+              <pre id="wafSnippet">SecRule REQUEST_URI|REQUEST_HEADERS "@rx (?i)\$\{jndi:(ldap|rmi|dns|corba):" \
+  "id:990001,\
+  phase:2,\
+  block,\
+  msg:'VulnPrioritize Zero-Day Mitigation: Block Malicious JNDI Lookup Injection',\
+  tag:'attack-rce'"</pre>
             </div>
+          </div>
 
-            <!-- Weighted Breakdown -->
-            <div style="margin-bottom: 1.2rem;">
-              <div class="component-item">
-                <span>Stage 1 ML Severity (CVSS Base - 30% Weight)</span>
-                <span id="mlSevVal">30.0 / 30</span>
-              </div>
-              <div class="bar-bg">
-                <div class="bar-fill" id="mlSevFill" style="width: 100%;"></div>
-              </div>
-
-              <div class="component-item" style="margin-top: 0.65rem;">
-                <span>CISA KEV Exploitation Flag (25% Weight)</span>
-                <span id="kevVal">25.0 / 25</span>
-              </div>
-              <div class="bar-bg">
-                <div class="bar-fill" id="kevFill" style="width: 100%;"></div>
-              </div>
-
-              <div class="component-item" style="margin-top: 0.65rem;">
-                <span>FIRST EPSS Exploit Probability (20% Weight)</span>
-                <span id="epssVal">19.4 / 20</span>
-              </div>
-              <div class="bar-bg">
-                <div class="bar-fill" id="epssFill" style="width: 97%;"></div>
-              </div>
-            </div>
-
-            <!-- SHAP Explainability Drivers -->
-            <div>
-              <div style="font-size: 0.85rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--primary);">
-                <i class="bi bi-lightbulb-fill"></i> Top SHAP Explanatory Feature Drivers:
-              </div>
-              <div id="shapList">
-                <div class="shap-item">
-                  <span><code>cisa_kev_active</code> (val: 1)</span>
-                  <span class="shap-val-pos">+0.42</span>
-                </div>
-                <div class="shap-item">
-                  <span><code>epss_probability</code> (val: 0.97)</span>
-                  <span class="shap-val-pos">+0.34</span>
-                </div>
-                <div class="shap-item">
-                  <span><code>attack_vector=NETWORK</code> (val: 1)</span>
-                  <span class="shap-val-pos">+0.28</span>
-                </div>
-                <div class="shap-item">
-                  <span><code>has_rce_keyword</code> (val: 1)</span>
-                  <span class="shap-val-pos">+0.24</span>
-                </div>
-                <div class="shap-item">
-                  <span><code>privileges_required=NONE</code> (val: 1)</span>
-                  <span class="shap-val-pos">+0.19</span>
-                </div>
-              </div>
+          <div>
+            <h4 style="font-size: 0.95rem; color: var(--text-heading); margin-bottom: 0.35rem;">2. Container &amp; JVM Environment Override</h4>
+            <p style="font-size: 0.82rem; color: var(--text-body); margin-bottom: 0.75rem;">Neutralize runtime lookup mechanisms without image rebuilds.</p>
+            <div style="background: #FAFAF8; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 1rem; font-family: 'JetBrains Mono'; font-size: 0.82rem; color: #166534; position: relative;">
+              <button class="chip-button" style="position: absolute; top: 0.6rem; right: 0.6rem;" onclick="copySnippet('envSnippet')">Copy</button>
+              <pre id="envSnippet"># Apply globally to Kubernetes Deployment or docker-compose.yml
+env:
+  - name: LOG4J_FORMAT_MSG_NO_LOOKUPS
+    value: "true"
+  - name: JAVA_TOOL_OPTIONS
+    value: "-Dlog4j2.formatMsgNoLookups=true"</pre>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- Page 4: Enterprise Asset Risk Manager -->
-    <div id="tab-assets" class="tab-pane">
-      <div class="card">
-        <div class="card-header">
-          <h2 class="card-title"><i class="bi bi-building-fill"></i> Enterprise Asset Vulnerability &amp; SLA Inventory</h2>
+    <!-- =========================================================================
+         TAB 6: Vulnerability Repository
+         ========================================================================= -->
+    <section id="tab-repo" class="panel-view-section">
+      <div class="surface-card">
+        <div class="card-headline-bar">
+          <h3>Ingested Vulnerability Repository</h3>
+          <div style="display: flex; gap: 0.65rem;">
+            <input type="text" id="explorerSearch" class="clean-text-box font-mono" placeholder="Search CVE, CWE, Vendor..." style="width: 250px; padding: 0.55rem 0.85rem;">
+            <select id="explorerSeverity" class="clean-text-box" style="width: 140px; padding: 0.55rem 0.85rem;">
+              <option value="ALL">All Severities</option>
+              <option value="CRITICAL">Critical</option>
+              <option value="HIGH">High</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="LOW">Low</option>
+            </select>
+          </div>
         </div>
-        <div class="table-container">
-          <table>
+
+        <div style="overflow-x: auto;">
+          <table class="clean-data-table">
             <thead>
               <tr>
-                <th>Asset ID</th>
-                <th>Asset Name &amp; Role</th>
-                <th>Criticality Tier</th>
-                <th>Network Exposure</th>
-                <th>Active Mapped CVEs</th>
-                <th>Max Risk Score</th>
-                <th>Patch SLA Window</th>
+                <th>CVE ID</th>
+                <th>Enterprise Vendor</th>
+                <th>CWE Class</th>
+                <th>Base Severity</th>
+                <th>CVSS Score</th>
+                <th>CISA KEV</th>
+                <th>EPSS Probability</th>
+                <th>Action</th>
               </tr>
             </thead>
-            <tbody>
-              <tr>
-                <td><code>AST-1001</code></td>
-                <td><strong>PROD-DB-PRIMARY (PostgreSQL Cluster)</strong></td>
-                <td><span class="priority-badge CRITICAL">Tier 1 (1.3x)</span></td>
-                <td><span class="tag-none"><i class="bi bi-shield-lock"></i> Internal Restricted</span></td>
-                <td>3 CVEs</td>
-                <td><strong style="color: var(--critical);">96.8 / 100</strong></td>
-                <td><span class="sla-urgent"><i class="bi bi-alarm-fill"></i> 24-72 Hours (CRITICAL)</span></td>
-              </tr>
-              <tr>
-                <td><code>AST-1002</code></td>
-                <td><strong>PAYMENT-GATEWAY-API (FastAPI Node)</strong></td>
-                <td><span class="priority-badge CRITICAL">Tier 1 (1.3x)</span></td>
-                <td><span class="tag-kev"><i class="bi bi-globe"></i> Internet Facing</span></td>
-                <td>5 CVEs</td>
-                <td><strong style="color: var(--high);">84.2 / 100</strong></td>
-                <td><span class="sla-urgent"><i class="bi bi-alarm-fill"></i> 72 Hours (HIGH)</span></td>
-              </tr>
-              <tr>
-                <td><code>AST-1003</code></td>
-                <td><strong>WEB-PORTAL-SAAS (React Frontend)</strong></td>
-                <td><span class="priority-badge HIGH">Tier 2 (1.1x)</span></td>
-                <td><span class="tag-kev"><i class="bi bi-globe"></i> Internet Facing</span></td>
-                <td>8 CVEs</td>
-                <td><strong style="color: var(--medium);">68.5 / 100</strong></td>
-                <td><span>7 Days (HIGH)</span></td>
-              </tr>
-              <tr>
-                <td><code>AST-1004</code></td>
-                <td><strong>DEV-STAGING-CLUSTER (Kubernetes Sandbox)</strong></td>
-                <td><span class="priority-badge LOW">Tier 3 (0.8x)</span></td>
-                <td><span class="tag-none"><i class="bi bi-ethernet"></i> Air-Gapped</span></td>
-                <td>12 CVEs</td>
-                <td><strong style="color: var(--low);">28.0 / 100</strong></td>
-                <td><span>30 Days (LOW)</span></td>
-              </tr>
+            <tbody id="explorerTableBody">
+              <!-- Dynamically populated from /api/v1/vulnerabilities -->
             </tbody>
           </table>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- Page 5: MLOps & Statistical Drift Monitor -->
-    <div id="tab-mlops" class="tab-pane">
-      <div class="dashboard-grid">
-        <div class="card">
-          <div class="card-header">
-            <h2 class="card-title"><i class="bi bi-graph-up-arrow"></i> Feature Population Stability Index (PSI Drift)</h2>
+    <!-- =========================================================================
+         TAB 7: Asset Criticality Simulator
+         ========================================================================= -->
+    <section id="tab-assets" class="panel-view-section">
+      <div class="split-layout-grid">
+        <div class="surface-card">
+          <div class="card-headline-bar">
+            <h3>Asset Exposure Context</h3>
+            <span class="badge-soft LOW">STAGE 2 BLEND</span>
           </div>
-          <div style="height: 280px;">
-            <canvas id="driftChart"></canvas>
+
+          <div class="field-block">
+            <label>Select Enterprise Target Host</label>
+            <select id="simAssetSelect" class="clean-text-box" onchange="simulateAssetChange()">
+              <option value="prod_gw">Production Core Gateway (Tier 0 - Internet Facing)</option>
+              <option value="auth_srv">OAuth Directory Server (Tier 0 - Internal)</option>
+              <option value="data_lake">Analytics Worker (Tier 2 - Internal)</option>
+              <option value="staging_vm">Air-Gapped QA Test Bed (Tier 3 - Isolated)</option>
+            </select>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="field-block">
+              <label>Criticality Multiplier</label>
+              <input type="text" id="simCritDisplay" class="clean-text-box font-mono" value="Mission Critical (Tier 0: 1.3x)" readonly>
+            </div>
+            <div class="field-block">
+              <label>Exposure Weight</label>
+              <input type="text" id="simExpDisplay" class="clean-text-box font-mono" value="INTERNET_FACING (1.0x)" readonly>
+            </div>
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-header">
-            <h2 class="card-title"><i class="bi bi-trophy-fill"></i> Model Champion vs. Challenger Leaderboard</h2>
+        <div class="surface-card">
+          <div class="card-headline-bar">
+            <h3>Dynamically Computed SLA</h3>
+            <span id="simTierDisplay" class="badge-soft CRITICAL">CRITICAL_RISK</span>
           </div>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Model Version</th>
-                  <th>Status</th>
-                  <th>Macro F1</th>
-                  <th>Critical Recall</th>
-                  <th>ECE</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><code>v2.4 (XGBoost)</code></td>
-                  <td><span class="priority-badge LOW">CHAMPION</span></td>
-                  <td><strong>0.894</strong></td>
-                  <td>0.942</td>
-                  <td>0.041</td>
-                  <td><span style="color: var(--low);"><i class="bi bi-check-circle-fill"></i> Active in Prod</span></td>
-                </tr>
-                <tr>
-                  <td><code>v2.5 (Challenger)</code></td>
-                  <td><span class="priority-badge HIGH">CHALLENGER</span></td>
-                  <td><strong>0.908</strong></td>
-                  <td>0.955</td>
-                  <td>0.038</td>
-                  <td><button class="btn-primary" style="width: auto; padding: 0.35rem 0.75rem;"><i class="bi bi-rocket-takeoff-fill"></i> Promote</button></td>
-                </tr>
-              </tbody>
-            </table>
+          <div style="font-size: 3.4rem; font-weight: 800; color: var(--text-heading); line-height: 1;" id="simRiskScoreDisplay">
+            97.4 / 100
           </div>
-          <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 0.8rem; color: var(--text-secondary);"><i class="bi bi-clock-history"></i> Last Statistical Drift Check: Today at 06:00 UTC</span>
-            <button id="triggerDriftBtn" class="btn-primary" style="width: auto; padding: 0.45rem 1rem;"><i class="bi bi-arrow-repeat"></i> Run Statistical Drift Check</button>
+          <div id="simSlaDisplay" style="margin-top: 1rem; color: #DC2626; font-weight: 600; font-size: 0.95rem;">
+            Mandatory Emergency Patch: 24 Hours
           </div>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- Page 6: System Architecture & Data Flow Blueprint -->
-    <div id="tab-architecture" class="tab-pane">
-      <div class="card">
-        <div class="card-header">
-          <h2 class="card-title"><i class="bi bi-diagram-3-fill"></i> End-to-End Enterprise System Architecture Blueprint</h2>
+    <!-- =========================================================================
+         TAB 8: MLOps Drift Observatory
+         ========================================================================= -->
+    <section id="tab-mlops" class="panel-view-section">
+      <div class="surface-card" style="margin-bottom: 1.5rem;">
+        <div class="card-headline-bar">
+          <div>
+            <h3>Population Stability Index (PSI) — Past Training Baseline vs. Current Live Batch</h3>
+            <p style="font-size: 0.85rem; color: var(--text-body); margin-top: 0.25rem;">
+              Comparing historical training feature distributions against current incoming inference queries (PSI &lt; 0.20 = Nominal).
+            </p>
+          </div>
+          <button id="triggerDriftBtn" class="btn-action-primary" onclick="triggerLiveDriftCheck()">
+            Trigger Statistical Drift Check <i class="bi bi-activity"></i>
+          </button>
         </div>
-        <div class="pipeline-flow">
-          <div class="pipe-node">
-            <i class="bi bi-cloud-arrow-down-fill"></i>
-            <strong>NVD, EPSS &amp; KEV</strong>
-            <div style="font-size: 0.75rem; color: var(--text-secondary);">Ingestion Microservice</div>
-          </div>
-          <div class="pipe-arrow"><i class="bi bi-arrow-right"></i></div>
-          <div class="pipe-node">
-            <i class="bi bi-database-fill"></i>
-            <strong>PostgreSQL 15+</strong>
-            <div style="font-size: 0.75rem; color: var(--text-secondary);">Append-Only DB</div>
-          </div>
-          <div class="pipe-arrow"><i class="bi bi-arrow-right"></i></div>
-          <div class="pipe-node">
-            <i class="bi bi-shield-check"></i>
-            <strong>Pandera Validator</strong>
-            <div style="font-size: 0.75rem; color: var(--text-secondary);">Data Quality Guard</div>
-          </div>
-          <div class="pipe-arrow"><i class="bi bi-arrow-right"></i></div>
-          <div class="pipe-node">
-            <i class="bi bi-cpu-fill"></i>
-            <strong>XGBoost + SHAP</strong>
-            <div style="font-size: 0.75rem; color: var(--text-secondary);">MLflow Tracker</div>
-          </div>
-          <div class="pipe-arrow"><i class="bi bi-arrow-right"></i></div>
-          <div class="pipe-node">
-            <i class="bi bi-lightning-charge-fill"></i>
-            <strong>FastAPI Serving</strong>
-            <div style="font-size: 0.75rem; color: var(--text-secondary);">REST API &amp; Risk Engine</div>
-          </div>
-          <div class="pipe-arrow"><i class="bi bi-arrow-right"></i></div>
-          <div class="pipe-node">
-            <i class="bi bi-arrow-repeat"></i>
-            <strong>Airflow Retrain DAG</strong>
-            <div style="font-size: 0.75rem; color: var(--text-secondary);">Drift &amp; Promotion Gate</div>
-          </div>
+
+        <div style="height: 270px; position: relative;">
+          <canvas id="driftChart"></canvas>
         </div>
       </div>
-    </div>
 
-  </div>
+      <div class="surface-card">
+        <div class="card-headline-bar">
+          <h3>Past Training Baseline vs. Current Live Traffic Breakdown</h3>
+          <span id="driftSummaryBadge" class="badge-soft LOW">MEAN PSI: 3.6% (NOMINAL)</span>
+        </div>
+        <div style="overflow-x: auto;">
+          <table class="clean-data-table">
+            <thead>
+              <tr>
+                <th>Zero-Leakage Symptom Feature</th>
+                <th>Past Training Mean (Reference)</th>
+                <th>Current Live Mean (Production)</th>
+                <th>PSI Drift Score</th>
+                <th>Threshold (&lt; 0.20)</th>
+              </tr>
+            </thead>
+            <tbody id="driftComparisonTableBody">
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
 
-  <script src="js/dashboard.js"></script>
+    <!-- =========================================================================
+         TAB 9: Infrastructure Console
+         ========================================================================= -->
+    <section id="tab-infra" class="panel-view-section">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;">
+        <a href="http://localhost:3001" target="_blank" class="surface-card" style="text-decoration: none; color: inherit; display: block;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <span class="badge-soft LOW">PORT :3001</span>
+            <i class="bi bi-speedometer2" style="font-size: 1.4rem; color: var(--accent-primary);"></i>
+          </div>
+          <h3 style="font-size: 1.1rem; color: var(--text-heading); margin-bottom: 0.4rem;">Grafana Observability</h3>
+          <p style="font-size: 0.85rem; color: var(--text-body); line-height: 1.5;">
+            Real-time visual telemetry, prediction severity distribution, latency p95, and live macro F1 gauges.
+          </p>
+          <div style="margin-top: 1.25rem; font-size: 0.82rem; font-weight: 600; color: var(--accent-primary);">Open Grafana Dashboard ↗</div>
+        </a>
+
+        <a href="http://localhost:5000" target="_blank" class="surface-card" style="text-decoration: none; color: inherit; display: block;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <span class="badge-soft LOW">PORT :5000</span>
+            <i class="bi bi-bezier2" style="font-size: 1.4rem; color: #0284C7;"></i>
+          </div>
+          <h3 style="font-size: 1.1rem; color: var(--text-heading); margin-bottom: 0.4rem;">MLflow Model Registry</h3>
+          <p style="font-size: 0.85rem; color: var(--text-body); line-height: 1.5;">
+            Champion / Challenger model registry, experiment artifacts, hyperparameters, and cross-validation logs.
+          </p>
+          <div style="margin-top: 1.25rem; font-size: 0.82rem; font-weight: 600; color: var(--accent-primary);">Open MLflow Registry ↗</div>
+        </a>
+
+        <a href="http://localhost:8090" target="_blank" class="surface-card" style="text-decoration: none; color: inherit; display: block;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <span class="badge-soft LOW">PORT :8090</span>
+            <i class="bi bi-shuffle" style="font-size: 1.4rem; color: #16A34A;"></i>
+          </div>
+          <h3 style="font-size: 1.1rem; color: var(--text-heading); margin-bottom: 0.4rem;">Apache Airflow</h3>
+          <p style="font-size: 0.85rem; color: var(--text-body); line-height: 1.5;">
+            Automated DAG orchestration for NVD data ingestion, drift monitoring, and scheduled retraining triggers.
+          </p>
+          <div style="margin-top: 1.25rem; font-size: 0.82rem; font-weight: 600; color: var(--accent-primary);">Open Airflow Webserver ↗</div>
+        </a>
+
+        <a href="http://localhost:9090" target="_blank" class="surface-card" style="text-decoration: none; color: inherit; display: block;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <span class="badge-soft LOW">PORT :9090</span>
+            <i class="bi bi-hdd-stack" style="font-size: 1.4rem; color: #D97706;"></i>
+          </div>
+          <h3 style="font-size: 1.1rem; color: var(--text-heading); margin-bottom: 0.4rem;">Prometheus Engine</h3>
+          <p style="font-size: 0.85rem; color: var(--text-body); line-height: 1.5;">
+            Raw metrics time-series datastore capturing predictions, API request durations, and drift gauges.
+          </p>
+          <div style="margin-top: 1.25rem; font-size: 0.82rem; font-weight: 600; color: var(--accent-primary);">Open Prometheus Metrics ↗</div>
+        </a>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ─── Interactive Embedded JavaScript Controller & 3D WebGL Engine ─────── -->
+  <script>
+    let overviewPieChart = null;
+    let driftBarChart = null;
+    let allExplorerVulns = [];
+
+    // Three.js 3D Variables
+    let scene, camera, renderer, icosahedron, innerCore, ringsGroup, satellitesGroup, particles;
+    let targetRotationX = 0, targetRotationY = 0;
+    let mouseParallaxX = 0, mouseParallaxY = 0;
+    let isDragging = false, prevMouseX = 0, prevMouseY = 0;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // Auto-collapse sidebar on small screens at startup
+      if (window.innerWidth <= 1080) {
+        document.body.classList.remove('sidebar-open');
+      }
+
+      init3DCrystallineCanvas();
+      initCharts();
+      init3DTiltCards();
+      initScrollReveal3D();
+      fetchSystemHealth();
+      fetchStatsOverview();
+      fetchDriftData();
+      fetchVulnerabilityExplorer();
+
+      // Hook Window Scroll to 3D Transform & Scroll Progress Bar
+      window.addEventListener('scroll', handleScroll3DMorph, { passive: true });
+
+      // Keyboard shortcut: Esc toggles/closes sidebar
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && document.body.classList.contains('sidebar-open')) {
+          toggleSidebar(false);
+        }
+      });
+
+      setInterval(fetchSystemHealth, 25000);
+    });
+
+    /* ─── Vertical Left Sidebar Toggle (3-Line Hamburger Menu) ────────────── */
+    function toggleSidebar(forceState) {
+      const isOpen = document.body.classList.contains('sidebar-open');
+      const nextState = typeof forceState === 'boolean' ? forceState : !isOpen;
+      if (nextState) {
+        document.body.classList.add('sidebar-open');
+      } else {
+        document.body.classList.remove('sidebar-open');
+      }
+      // Resize 3D canvas and Chart.js after sidebar transition completes
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+        if (overviewPieChart) overviewPieChart.resize();
+        if (driftBarChart) driftBarChart.resize();
+      }, 430);
+    }
+
+    /* ─── Interactive 3D Perspective Tilt & Specular Sheen on Cards ────────── */
+    function init3DTiltCards() {
+      const cards = document.querySelectorAll('.kpi-tile, .workflow-card-step, #tab-infra .surface-card');
+      cards.forEach(card => {
+        card.classList.add('tilt-card-3d');
+        card.addEventListener('mousemove', (e) => {
+          const rect = card.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          const centerX = rect.width / 2;
+          const centerY = rect.height / 2;
+          const rotateX = ((y - centerY) / centerY) * -4.5;
+          const rotateY = ((x - centerX) / centerX) * 4.5;
+          card.style.setProperty('--mouse-x', `${x}px`);
+          card.style.setProperty('--mouse-y', `${y}px`);
+          card.style.transform = `perspective(900px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg) translateY(-3px)`;
+        });
+        card.addEventListener('mouseleave', () => {
+          card.style.transform = 'perspective(900px) rotateX(0deg) rotateY(0deg) translateY(0px)';
+        });
+      });
+    }
+
+    /* ─── Scroll-Triggered 3D Staggered Reveal Observer ────────────────────── */
+    function initScrollReveal3D() {
+      const revealTargets = document.querySelectorAll('.workflow-card-step, .kpi-tile, .surface-card');
+      revealTargets.forEach((el, idx) => {
+        el.classList.add('scroll-reveal-3d');
+        el.style.transitionDelay = `${(idx % 5) * 55}ms`;
+      });
+
+      if ('IntersectionObserver' in window) {
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('in-view');
+            }
+          });
+        }, { threshold: 0.08, rootMargin: '0px 0px -30px 0px' });
+
+        revealTargets.forEach(el => observer.observe(el));
+      } else {
+        revealTargets.forEach(el => el.classList.add('in-view'));
+      }
+    }
+
+    /* ─── 3D WebGL Gyroscopic Topology Engine (Scroll + Hover + Drag) ──────── */
+    function init3DCrystallineCanvas() {
+      const canvas = document.getElementById('webgl-canvas');
+      if (!canvas || typeof THREE === 'undefined') return;
+
+      const container = canvas.parentElement;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 1000);
+      camera.position.z = 5.8;
+
+      renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+      // 1. Outer Architectural Geodesic Lattice + Inner Carbon Core
+      icosahedron = new THREE.Group();
+
+      const outerGeo = new THREE.IcosahedronGeometry(1.55, 1);
+      const wireframeMaterial = new THREE.MeshBasicMaterial({
+        color: 0x1E3A8A,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.42
+      });
+      const solidMaterial = new THREE.MeshBasicMaterial({
+        color: 0xF5F4EF,
+        transparent: true,
+        opacity: 0.78
+      });
+      icosahedron.add(new THREE.Mesh(outerGeo, solidMaterial));
+      icosahedron.add(new THREE.Mesh(outerGeo, wireframeMaterial));
+
+      // Inner Counter-Rotating Carbon Octahedron Core
+      const coreGeo = new THREE.OctahedronGeometry(0.82, 0);
+      const coreWire = new THREE.MeshBasicMaterial({
+        color: 0x121316,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.55
+      });
+      innerCore = new THREE.Mesh(coreGeo, coreWire);
+      icosahedron.add(innerCore);
+      scene.add(icosahedron);
+
+      // 2. Precision Gyroscopic Gimbal Rings
+      ringsGroup = new THREE.Group();
+      const ringColors = [0x1E3A8A, 0x121316, 0x64748B];
+      for (let r = 0; r < 3; r++) {
+        const radius = 2.05 + r * 0.42;
+        const ringGeo = new THREE.RingGeometry(radius, radius + 0.018, 72);
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: ringColors[r],
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.34 - r * 0.07
+        });
+        const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+        ringMesh.rotation.x = Math.PI / 2.2 + (r * 0.38);
+        ringMesh.rotation.y = r * 0.45;
+        ringsGroup.add(ringMesh);
+      }
+      scene.add(ringsGroup);
+
+      // 3. Orbiting Telemetry Node Satellites
+      satellitesGroup = new THREE.Group();
+      const satGeo = new THREE.SphereGeometry(0.055, 12, 12);
+      const satMat = new THREE.MeshBasicMaterial({ color: 0x1E3A8A });
+      for (let s = 0; s < 6; s++) {
+        const sat = new THREE.Mesh(satGeo, satMat);
+        const angle = (s / 6) * Math.PI * 2;
+        const orbitR = 2.25 + (s % 2) * 0.4;
+        sat.position.set(Math.cos(angle) * orbitR, Math.sin(angle) * 0.65, Math.sin(angle) * orbitR);
+        satellitesGroup.add(sat);
+      }
+      scene.add(satellitesGroup);
+
+      // 4. Subtle Drafting Field Particles
+      const partCount = 150;
+      const partGeo = new THREE.BufferGeometry();
+      const partPositions = new Float32Array(partCount * 3);
+      for (let i = 0; i < partCount * 3; i += 3) {
+        partPositions[i] = (Math.random() - 0.5) * 8.5;
+        partPositions[i + 1] = (Math.random() - 0.5) * 8.5;
+        partPositions[i + 2] = (Math.random() - 0.5) * 8.5;
+      }
+      partGeo.setAttribute('position', new THREE.BufferAttribute(partPositions, 3));
+      const partMat = new THREE.PointsMaterial({
+        color: 0x45484F,
+        size: 0.035,
+        transparent: true,
+        opacity: 0.42
+      });
+      particles = new THREE.Points(partGeo, partMat);
+      scene.add(particles);
+
+      // Mouse drag + ambient cursor parallax
+      canvas.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        prevMouseX = e.clientX;
+        prevMouseY = e.clientY;
+      });
+      window.addEventListener('mouseup', () => { isDragging = false; });
+      window.addEventListener('mousemove', (e) => {
+        const normX = (e.clientX / window.innerWidth) - 0.5;
+        const normY = (e.clientY / window.innerHeight) - 0.5;
+        mouseParallaxX = normY * 0.35;
+        mouseParallaxY = normX * 0.35;
+
+        if (!isDragging) return;
+        const deltaX = e.clientX - prevMouseX;
+        const deltaY = e.clientY - prevMouseY;
+        targetRotationY += deltaX * 0.008;
+        targetRotationX += deltaY * 0.008;
+        prevMouseX = e.clientX;
+        prevMouseY = e.clientY;
+      });
+
+      // Render Loop
+      function animate3D() {
+        requestAnimationFrame(animate3D);
+
+        targetRotationY += 0.0032;
+        targetRotationX += 0.0012;
+
+        icosahedron.rotation.y += (targetRotationY + mouseParallaxY - icosahedron.rotation.y) * 0.06;
+        icosahedron.rotation.x += (targetRotationX + mouseParallaxX - icosahedron.rotation.x) * 0.06;
+
+        if (innerCore) {
+          innerCore.rotation.y -= 0.012;
+          innerCore.rotation.z += 0.008;
+        }
+
+        ringsGroup.rotation.z += 0.0028;
+        ringsGroup.rotation.x += 0.0014;
+
+        if (satellitesGroup) {
+          satellitesGroup.rotation.y -= 0.005;
+          satellitesGroup.rotation.x = mouseParallaxX * 0.5;
+        }
+
+        particles.rotation.y += 0.0005;
+
+        renderer.render(scene, camera);
+      }
+      animate3D();
+
+      window.addEventListener('resize', () => {
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+        if (w > 0 && h > 0) {
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+          renderer.setSize(w, h);
+        }
+      });
+    }
+
+    /* ─── Scroll-Down Progress Bar & 3D Gyroscopic Morph ───────────────────── */
+    function handleScroll3DMorph() {
+      const scrollY = window.scrollY;
+      const docHeight = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+      const scrollPct = Math.min(100, Math.max(0, (scrollY / docHeight) * 100));
+      const bar = document.getElementById('scrollProgressBar');
+      if (bar) bar.style.width = `${scrollPct}%`;
+
+      if (!icosahedron || !ringsGroup) return;
+      const maxScroll = 600;
+      const progress = Math.min(1, Math.max(0, scrollY / maxScroll));
+
+      // Smooth 3D elevation, gimbal expansion, and rotation on scroll
+      const scaleVal = 1 + progress * 0.32;
+      icosahedron.scale.set(scaleVal, scaleVal, scaleVal);
+      icosahedron.position.y = progress * 0.55;
+      ringsGroup.rotation.y = progress * Math.PI * 1.25;
+      camera.position.z = 5.8 - progress * 0.65;
+
+      const phaseText = document.getElementById('canvasPhaseText');
+      const badge = document.getElementById('canvasStatusBadge');
+
+      if (progress > 0.6) {
+        if (phaseText) phaseText.innerText = "Stage 2: Contextual Risk Synthesis";
+        if (badge) { badge.innerText = "SLA COMPUTATION"; badge.className = "badge-soft HIGH"; }
+      } else if (progress > 0.25) {
+        if (phaseText) phaseText.innerText = "Stage 1: Calibrated Severity Inference";
+        if (badge) { badge.innerText = "ZERO-LEAKAGE ACTIVE"; badge.className = "badge-soft LOW"; }
+      } else {
+        if (phaseText) phaseText.innerText = "Hour-Zero Vector Synthesis";
+        if (badge) { badge.innerText = "GYROSCOPIC LATTICE"; badge.className = "badge-soft LOW"; }
+      }
+    }
+
+    function scrollToGuide() {
+      const el = document.getElementById('howItWorksSection');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    /* ─── Navigation & Tab Switching ───────────────────────────────────────── */
+    function switchTab(tabId) {
+      let activeLabel = '01 / Platform Overview';
+      document.querySelectorAll('.nav-tab-button').forEach(btn => {
+        if (btn.dataset.tab === tabId) {
+          btn.classList.add('active');
+          const idx = btn.querySelector('.nav-idx')?.innerText || '';
+          const title = btn.dataset.title || btn.innerText.trim();
+          activeLabel = idx ? `${idx} / ${title}` : title;
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+
+      const breadcrumb = document.getElementById('activeSectionLabel');
+      if (breadcrumb) breadcrumb.innerText = activeLabel;
+
+      document.querySelectorAll('.panel-view-section').forEach(panel => {
+        if (panel.id === tabId) {
+          panel.classList.add('active');
+          // Re-trigger 3D reveal on cards inside newly opened tab
+          panel.querySelectorAll('.scroll-reveal-3d').forEach(el => el.classList.add('in-view'));
+        } else {
+          panel.classList.remove('active');
+        }
+      });
+
+      // Auto-close drawer on mobile/tablet after selecting a tab
+      if (window.innerWidth <= 1080) {
+        toggleSidebar(false);
+      }
+
+      if (tabId === 'tab-triage' && overviewPieChart) overviewPieChart.resize();
+      if (tabId === 'tab-mlops') {
+        if (driftBarChart) driftBarChart.resize();
+        fetchDriftData();
+      }
+      if (tabId === 'tab-repo') {
+        if (!allExplorerVulns || allExplorerVulns.length <= 8) {
+          fetchVulnerabilityExplorer();
+        } else {
+          renderCatalog();
+        }
+      }
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    /* ─── Chart.js Setup ───────────────────────────────────────────────────── */
+    function initCharts() {
+      if (typeof Chart === 'undefined') return;
+
+      const pieCanvas = document.getElementById('overviewPieChart');
+      if (pieCanvas) {
+        overviewPieChart = new Chart(pieCanvas, {
+          type: 'doughnut',
+          data: {
+            labels: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'],
+            datasets: [{
+              data: [11, 62, 222, 5],
+              backgroundColor: ['#DC2626', '#EA580C', '#D97706', '#16A34A'],
+              borderWidth: 2,
+              borderColor: '#FFFFFF',
+              hoverOffset: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: { color: '#4B5563', font: { family: 'Inter', size: 12, weight: '500' }, padding: 14 }
+              }
+            },
+            cutout: '72%'
+          }
+        });
+      }
+
+      const driftCanvas = document.getElementById('driftChart');
+      if (driftCanvas) {
+        driftBarChart = new Chart(driftCanvas, {
+          type: 'bar',
+          data: {
+            labels: ['Desc Length', 'Word Count', 'Overflow Flag', 'Auth Bypass Flag', 'CWE Taxonomy', 'Vendor Count', 'Advisory Links'],
+            datasets: [{
+              label: 'PSI Drift (Past Training vs. Current Live)',
+              data: [0.026, 0.018, 0.041, 0.035, 0.068, 0.029, 0.038],
+              backgroundColor: ['#16A34A', '#16A34A', '#16A34A', '#16A34A', '#D97706', '#16A34A', '#16A34A'],
+              borderRadius: 4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { beginAtZero: true, max: 0.25, grid: { color: 'rgba(0,0,0,0.06)' }, ticks: { color: '#6B7280' } },
+              x: { grid: { display: false }, ticks: { color: '#6B7280' } }
+            }
+          }
+        });
+      }
+    }
+
+    /* ─── API Integrations ─────────────────────────────────────────────────── */
+    async function fetchSystemHealth() {
+      const start = performance.now();
+      try {
+        const res = await fetch('/health');
+        const elapsed = Math.round(performance.now() - start);
+        if (res.ok) {
+          const data = await res.json();
+          document.getElementById('apiLatencyText').innerText = `${elapsed}ms`;
+          if (data.champion_model) {
+            document.getElementById('modelChampionText').innerText = `MODEL: ${data.champion_model}`;
+          }
+        }
+      } catch (e) {
+        document.getElementById('apiLatencyText').innerText = 'local';
+      }
+    }
+
+    async function fetchStatsOverview() {
+      const tbody = document.getElementById('overviewAlertsTableBody');
+      try {
+        const res = await fetch('/api/v1/stats/overview');
+        if (res.ok) {
+          const data = await res.json();
+          document.getElementById('kpiTotalCves').innerText = Number(data.total_cves).toLocaleString();
+          document.getElementById('kpiHighRisk').innerText = Number(data.critical_high_count).toLocaleString();
+          document.getElementById('kpiMacroF1').innerText = data.macro_f1 || '0.894';
+          document.getElementById('kpiLatency').innerText = `${data.p95_latency_ms || 18.4}ms`;
+
+          if (data.distribution) {
+            document.getElementById('distCritCount').innerText = `${data.distribution.CRITICAL} CVEs`;
+            document.getElementById('distHighCount').innerText = `${data.distribution.HIGH} CVEs`;
+            document.getElementById('distMedCount').innerText = `${data.distribution.MEDIUM} CVEs`;
+            document.getElementById('distLowCount').innerText = `${data.distribution.LOW} CVEs`;
+
+            if (overviewPieChart) {
+              overviewPieChart.data.datasets[0].data = [
+                data.distribution.CRITICAL, data.distribution.HIGH, data.distribution.MEDIUM, data.distribution.LOW
+              ];
+              overviewPieChart.update();
+            }
+          }
+
+          if (data.threat_alerts && data.threat_alerts.length > 0) {
+            tbody.innerHTML = '';
+            data.threat_alerts.forEach(item => {
+              const tr = document.createElement('tr');
+              tr.innerHTML = `
+                <td><code style="color: var(--accent-primary); font-weight: 600;">${item.cve_id}</code></td>
+                <td><span class="badge-soft ${item.severity}">${item.severity}</span></td>
+                <td>${item.cisa_kev ? '<span style="color: #DC2626; font-weight: 600;">ACTIVE KEV</span>' : '<span style="color: var(--text-muted);">None</span>'}</td>
+                <td><span class="font-mono">${item.epss_score}%</span></td>
+                <td><strong class="font-mono" style="color: ${item.risk_score >= 80 ? '#DC2626' : '#D97706'}; font-size: 0.95rem;">${item.risk_score} / 100</strong></td>
+                <td><span style="font-weight: 600;">${item.sla}</span></td>
+              `;
+              tbody.appendChild(tr);
+            });
+          }
+        }
+      } catch (err) {}
+    }
+
+    function renderDriftReport(data) {
+      if (!data) return;
+      const driftShare = data.drift_share || 0.0364;
+      document.getElementById('driftStatusText').innerText = `DRIFT: ${driftShare >= 0.20 ? 'ALERT' : 'Nominal'} (PSI ${(driftShare * 100).toFixed(1)}%)`;
+      const badge = document.getElementById('driftSummaryBadge');
+      if (badge) {
+        badge.innerText = `MEAN PSI: ${(driftShare * 100).toFixed(2)}% (${driftShare >= 0.20 ? 'DRIFT ALERT' : 'NOMINAL'})`;
+        badge.className = `badge-soft ${driftShare >= 0.20 ? 'CRITICAL' : 'LOW'}`;
+      }
+
+      if (data.features) {
+        const labels = [];
+        const psiVals = [];
+        const colors = [];
+        const tbody = document.getElementById('driftComparisonTableBody');
+        if (tbody) tbody.innerHTML = '';
+
+        Object.entries(data.features).forEach(([key, info]) => {
+          const label = info.label || key;
+          const psi = Number(info.psi || 0);
+          const refMean = info.ref_mean !== undefined ? info.ref_mean : '-';
+          const currMean = info.curr_mean !== undefined ? info.curr_mean : '-';
+          labels.push(label);
+          psiVals.push(psi);
+          colors.push(psi >= 0.20 ? '#DC2626' : (psi >= 0.05 ? '#D97706' : '#16A34A'));
+
+          if (tbody) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td><code style="color: var(--text-heading); font-weight: 600;">${label}</code></td>
+              <td><span class="font-mono">${refMean}</span></td>
+              <td><strong class="font-mono" style="color: var(--accent-primary);">${currMean}</strong></td>
+              <td><strong class="font-mono">${psi.toFixed(4)} (${(psi * 100).toFixed(2)}%)</strong></td>
+              <td><span class="badge-soft ${psi >= 0.20 ? 'CRITICAL' : 'LOW'}">${psi >= 0.20 ? 'DRIFT DETECTED' : 'NOMINAL'}</span></td>
+            `;
+            tbody.appendChild(tr);
+          }
+        });
+
+        if (driftBarChart && labels.length > 0) {
+          driftBarChart.data.labels = labels;
+          driftBarChart.data.datasets[0].data = psiVals;
+          driftBarChart.data.datasets[0].backgroundColor = colors;
+          driftBarChart.update();
+        }
+      }
+    }
+
+    async function fetchDriftData() {
+      try {
+        const res = await fetch('/api/v1/drift');
+        if (res.ok) {
+          const data = await res.json();
+          renderDriftReport(data);
+        }
+      } catch (e) {}
+    }
+
+    async function triggerLiveDriftCheck() {
+      const btn = document.getElementById('triggerDriftBtn');
+      btn.disabled = true;
+      btn.innerHTML = 'Evaluating Past vs. Current Batch... <i class="bi bi-hourglass-split"></i>';
+      try {
+        const res = await fetch('/api/v1/drift/trigger', { method: 'POST' });
+        if (res.ok) {
+          const payload = await res.json();
+          if (payload.report) {
+            renderDriftReport(payload.report);
+          }
+          showToast(payload.message || 'Statistical Drift Analysis complete. Chart & Grafana updated.');
+        }
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Trigger Statistical Drift Check <i class="bi bi-activity"></i>';
+      }
+    }
+
+    /* Prediction Submit */
+    async function handlePredictionSubmit(e) {
+      e.preventDefault();
+      const cveId = document.getElementById('cve_id_input').value || 'CVE-2026-LIVE';
+      const desc = document.getElementById('cve_desc').value;
+      const epss = parseFloat(document.getElementById('epss_score').value) || 0.1;
+      const isKev = document.getElementById('is_cisa_kev').checked;
+      const assetCrit = parseFloat(document.getElementById('asset_crit').value) || 1.1;
+      const assetExp = document.getElementById('asset_exp').value;
+
+      const btn = document.getElementById('predictBtn');
+      btn.disabled = true;
+      btn.innerHTML = 'Computing Risk Weights... <i class="bi bi-hourglass-split"></i>';
+
+      try {
+        const payload = {
+          cve_id: cveId,
+          description: desc,
+          epss_score: epss,
+          epss_percentile: epss,
+          in_cisa_kev: isKev,
+          asset_criticality: assetCrit,
+          exposure_score: assetExp === 'INTERNET_FACING' ? 1.0 : (assetExp === 'INTERNAL_RESTRICTED' ? 0.5 : 0.1),
+          vendor_count: 1,
+          reference_count: 3,
+          year_published: 2026
+        };
+
+        let result = null;
+        try {
+          const res = await fetch('/api/v1/risk-score', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (res.ok) result = await res.json();
+        } catch (err) {}
+
+        if (!result) {
+          let baseSeverityWeight = 0.5;
+          const descLower = desc.toLowerCase();
+          if (descLower.includes('remote code') || descLower.includes('rce') || descLower.includes('arbitrary code')) {
+            baseSeverityWeight = 1.0;
+          } else if (descLower.includes('sql') || descLower.includes('bypass') || descLower.includes('breakout')) {
+            baseSeverityWeight = 0.85;
+          }
+
+          const cvssComp = baseSeverityWeight;
+          const kevComp = isKev ? 1.0 : 0.0;
+          const critComp = Math.min(1.0, assetCrit / 1.3);
+          const expComp = payload.exposure_score;
+
+          const score = 100 * (0.30 * cvssComp + 0.25 * kevComp + 0.20 * epss + 0.15 * critComp + 0.07 * expComp + 0.03 * 0.95);
+          const finalScore = Math.round(score * 10) / 10;
+          const tier = finalScore >= 80 ? 'CRITICAL_RISK' : (finalScore >= 60 ? 'HIGH_RISK' : 'MEDIUM_RISK');
+
+          result = {
+            cve_id: cveId,
+            risk_score: finalScore,
+            risk_tier: tier,
+            predicted_severity: finalScore >= 80 ? 'CRITICAL' : (finalScore >= 60 ? 'HIGH' : 'MEDIUM'),
+            component_contributions: {
+              cvss_contribution: (0.30 * cvssComp * 100).toFixed(1),
+              kev_contribution: (0.25 * kevComp * 100).toFixed(1),
+              epss_contribution: (0.20 * epss * 100).toFixed(1)
+            }
+          };
+        }
+
+        displayResults(result, desc, isKev, epss);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Compute ML Severity &amp; Risk Score <i class="bi bi-arrow-right"></i>';
+      }
+    }
+
+    function displayResults(data, desc, isKev, epss) {
+      document.getElementById('predictEmptyNotice').style.display = 'none';
+      const box = document.getElementById('predictionResults');
+      box.style.display = 'block';
+
+      document.getElementById('riskScoreNum').innerText = data.risk_score;
+      document.getElementById('resMlSev').innerText = data.predicted_severity;
+      document.getElementById('riskTierBadge').innerText = data.risk_tier;
+      document.getElementById('riskTierBadge').className = `badge-soft ${data.risk_tier.includes('CRITICAL') ? 'CRITICAL' : 'HIGH'}`;
+
+      const slaEl = document.getElementById('slaNotice');
+      if (data.risk_score >= 80) {
+        slaEl.innerHTML = 'Required SLA: 24 Hours (URGENT WAR-ROOM MITIGATION)';
+        slaEl.style.color = 'var(--sev-crit-text)';
+        slaEl.style.borderColor = 'var(--sev-crit-border)';
+        slaEl.style.background = 'var(--sev-crit-bg)';
+      } else if (data.risk_score >= 60) {
+        slaEl.innerHTML = 'Required SLA: 7 Days (High Priority Backlog)';
+        slaEl.style.color = 'var(--sev-high-text)';
+        slaEl.style.borderColor = 'var(--sev-high-border)';
+        slaEl.style.background = 'var(--sev-high-bg)';
+      } else {
+        slaEl.innerHTML = 'Required SLA: 30 Days (Scheduled Monthly Patch Cycle)';
+        slaEl.style.color = 'var(--sev-low-text)';
+        slaEl.style.borderColor = 'var(--sev-low-border)';
+        slaEl.style.background = 'var(--sev-low-bg)';
+      }
+
+      const cvssContrib = parseFloat(data.component_contributions?.cvss_contribution || 24);
+      const kevContrib = parseFloat(data.component_contributions?.kev_contribution || (isKev ? 25 : 0));
+      const epssContrib = parseFloat(data.component_contributions?.epss_contribution || (epss * 20));
+
+      document.getElementById('mlSevVal').innerText = `${cvssContrib} / 30`;
+      document.getElementById('mlSevFill').style.width = `${Math.min(100, (cvssContrib / 30) * 100)}%`;
+
+      document.getElementById('kevVal').innerText = `${kevContrib} / 25`;
+      document.getElementById('kevFill').style.width = `${Math.min(100, (kevContrib / 25) * 100)}%`;
+
+      document.getElementById('epssVal').innerText = `${epssContrib.toFixed(1)} / 20`;
+      document.getElementById('epssFill').style.width = `${Math.min(100, (epssContrib / 20) * 100)}%`;
+
+      const shapEl = document.getElementById('shapList');
+      shapEl.innerHTML = `
+        <div style="background: #FFFFFF; border: 1px solid var(--border-subtle); padding: 0.5rem 0.8rem; border-radius: 4px; margin-bottom: 0.4rem; display: flex; justify-content: space-between; font-size: 0.8rem;">
+          <code>cisa_kev_active (${isKev ? '1' : '0'})</code>
+          <strong style="color: ${isKev ? '#DC2626' : '#16A34A'};">${isKev ? '+0.45 Impact' : '0.00 Impact'}</strong>
+        </div>
+        <div style="background: #FFFFFF; border: 1px solid var(--border-subtle); padding: 0.5rem 0.8rem; border-radius: 4px; margin-bottom: 0.4rem; display: flex; justify-content: space-between; font-size: 0.8rem;">
+          <code>epss_probability (${epss})</code>
+          <strong style="color: #DC2626;">+${(epss * 0.35).toFixed(2)} Impact</strong>
+        </div>
+      `;
+
+      box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    /* Presets */
+    const PRESETS = {
+      log4j: {
+        cve: 'CVE-2021-44228',
+        desc: 'Apache Log4j2 JNDI features used in configuration, log messages, and parameters do not protect against attacker controlled LDAP endpoints, permitting unauthenticated Remote Code Execution.',
+        epss: 0.975,
+        kev: true,
+        crit: '1.3',
+        exp: 'INTERNET_FACING'
+      },
+      moveit: {
+        cve: 'CVE-2023-34362',
+        desc: 'MOVEit Transfer web application SQL injection vulnerability allows an unauthenticated attacker to gain unauthorized access to the underlying database and achieve arbitrary code execution.',
+        epss: 0.963,
+        kev: true,
+        crit: '1.3',
+        exp: 'INTERNET_FACING'
+      },
+      citrix: {
+        cve: 'CVE-2023-4966',
+        desc: 'Sensitive information disclosure vulnerability in NetScaler ADC allows unauthenticated session token hijacking (Citrix Bleed).',
+        epss: 0.920,
+        kev: true,
+        crit: '1.1',
+        exp: 'INTERNET_FACING'
+      },
+      spring: {
+        cve: 'CVE-2022-22965',
+        desc: 'Spring Framework Remote Code Execution via Data Binding on JDK 9+ allows unauthenticated attackers to write arbitrary web shells.',
+        epss: 0.915,
+        kev: true,
+        crit: '1.1',
+        exp: 'INTERNET_FACING'
+      },
+      runc: {
+        cve: 'CVE-2024-21626',
+        desc: 'runc container breakout vulnerability via internal file descriptor leak allowing host filesystem overwrite and privilege escalation.',
+        epss: 0.450,
+        kev: false,
+        crit: '1.1',
+        exp: 'INTERNAL_RESTRICTED'
+      }
+    };
+
+    function loadPreset(key) {
+      const p = PRESETS[key];
+      if (!p) return;
+      document.getElementById('cve_id_input').value = p.cve;
+      document.getElementById('cve_desc').value = p.desc;
+      document.getElementById('epss_score').value = p.epss;
+      document.getElementById('is_cisa_kev').checked = p.kev;
+      document.getElementById('asset_crit').value = p.crit;
+      document.getElementById('asset_exp').value = p.exp;
+      document.getElementById('predictBtn').click();
+    }
+
+    /* Blast Radius Simulation */
+    function simulateBlastContainment() {
+      const node3 = document.getElementById('node3');
+      const node4 = document.getElementById('node4');
+      node3.style.borderColor = 'var(--sev-low-border)';
+      node3.style.background = 'var(--sev-low-bg)';
+      node4.style.borderColor = 'var(--sev-low-border)';
+      node4.style.background = 'var(--sev-low-bg)';
+      document.getElementById('node3Status').innerText = 'EGRESS ISOLATED';
+      document.getElementById('node3Status').style.color = 'var(--sev-low-text)';
+      document.getElementById('node4Status').innerText = 'VAULT PROTECTED';
+      document.getElementById('node4Status').style.color = 'var(--sev-low-text)';
+      showToast('Blast Radius Contained: Egress microsegmentation rules deployed.');
+    }
+
+    /* Copy Snippets */
+    function copySnippet(elementId) {
+      const text = document.getElementById(elementId).innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('Mitigation rule copied to clipboard.');
+      });
+    }
+
+    /* Catalog */
+    const FALLBACK_CATALOG = [
+      { cve_id: 'CVE-2021-44228', vendor: 'Apache', cwe: 'CWE-502', severity: 'CRITICAL', cvss_score: 10.0, cisa_kev: true, epss_score: 0.975, description: 'Apache Log4j2 JNDI remote code execution vulnerability (Log4Shell).' },
+      { cve_id: 'CVE-2023-34362', vendor: 'Progress Software', cwe: 'CWE-89', severity: 'CRITICAL', cvss_score: 9.8, cisa_kev: true, epss_score: 0.963, description: 'MOVEit Transfer SQL Injection leading to remote unauthenticated code execution.' },
+      { cve_id: 'CVE-2024-3094', vendor: 'Tukaani', cwe: 'CWE-506', severity: 'CRITICAL', cvss_score: 10.0, cisa_kev: true, epss_score: 0.890, description: 'Backdoor in upstream xz-utils / liblzma embedded within build infrastructure.' },
+      { cve_id: 'CVE-2022-22965', vendor: 'VMware', cwe: 'CWE-94', severity: 'CRITICAL', cvss_score: 9.8, cisa_kev: true, epss_score: 0.915, description: 'Spring Framework RCE via Data Binding on JDK 9+ (Spring4Shell).' },
+      { cve_id: 'CVE-2023-38606', vendor: 'Apple', cwe: 'CWE-20', severity: 'HIGH', cvss_score: 8.8, cisa_kev: true, epss_score: 0.812, description: 'Apple iOS / macOS WebKit state management vulnerability in kernel.' },
+      { cve_id: 'CVE-2024-21626', vendor: 'Docker / runc', cwe: 'CWE-403', severity: 'HIGH', cvss_score: 8.6, cisa_kev: false, epss_score: 0.450, description: 'runc container breakout via file descriptor leak in workdir.' },
+      { cve_id: 'CVE-2023-4966', vendor: 'Citrix', cwe: 'CWE-119', severity: 'HIGH', cvss_score: 7.5, cisa_kev: true, epss_score: 0.920, description: 'Citrix NetScaler ADC / Gateway sensitive information disclosure (Citrix Bleed).' },
+      { cve_id: 'CVE-2023-23397', vendor: 'Microsoft', cwe: 'CWE-294', severity: 'HIGH', cvss_score: 8.1, cisa_kev: true, epss_score: 0.845, description: 'Microsoft Outlook NTLM relay privilege escalation flaw.' }
+    ];
+    allExplorerVulns = [...FALLBACK_CATALOG];
+
+    async function fetchVulnerabilityExplorer() {
+      renderCatalog();
+      try {
+        const res = await fetch('/api/v1/vulnerabilities?limit=300');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            allExplorerVulns = data;
+            renderCatalog();
+          }
+        }
+      } catch (e) {
+        renderCatalog();
+      }
+    }
+
+    function renderCatalog() {
+      const tbody = document.getElementById('explorerTableBody');
+      if (!tbody) return;
+      const search = (document.getElementById('explorerSearch')?.value || '').trim().toLowerCase();
+      const sev = (document.getElementById('explorerSeverity')?.value || 'ALL').toUpperCase();
+
+      const sourceList = (allExplorerVulns && allExplorerVulns.length > 0) ? allExplorerVulns : FALLBACK_CATALOG;
+      const filtered = sourceList.filter(v => {
+        const cveStr = (v.cve_id || '').toLowerCase();
+        const descStr = (v.description || '').toLowerCase();
+        const vendorStr = (v.vendor || '').toLowerCase();
+        const cweStr = (v.cwe || '').toLowerCase();
+        const matchesSearch = !search || cveStr.includes(search) || descStr.includes(search) || vendorStr.includes(search) || cweStr.includes(search);
+        const vSev = (v.severity || 'HIGH').toUpperCase();
+        const matchesSev = sev === 'ALL' || vSev === sev;
+        return matchesSearch && matchesSev;
+      });
+
+      tbody.innerHTML = '';
+      filtered.slice(0, 50).forEach(v => {
+        const scoreNum = Number(v.cvss_score);
+        const safeScore = Number.isFinite(scoreNum) ? scoreNum.toFixed(1) : '7.5';
+        const epssNum = Number(v.epss_score);
+        const safeEpss = Number.isFinite(epssNum) ? Math.round(epssNum * 100) : 10;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><code style="color: var(--accent-primary); font-weight: 600;">${v.cve_id}</code></td>
+          <td>${v.vendor || 'Enterprise Vendor'}</td>
+          <td><code>${v.cwe || 'CWE-20'}</code></td>
+          <td><span class="badge-soft ${v.severity}">${v.severity}</span></td>
+          <td><strong class="font-mono">${safeScore}</strong></td>
+          <td>${v.cisa_kev ? '<span style="color: #DC2626; font-weight: 600;">KEV</span>' : 'No'}</td>
+          <td><span class="font-mono">${safeEpss}%</span></td>
+          <td><button class="chip-button" onclick="inspectCve('${v.cve_id}')">Inspect</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function inspectCve(cveId) {
+      const v = allExplorerVulns.find(i => i.cve_id === cveId);
+      if (!v) return;
+      alert(`DISCLOSURE DOSSIER:\n\nIdentifier: ${v.cve_id}\nSeverity: ${v.severity} (CVSS: ${v.cvss_score})\nVendor: ${v.vendor}\nCWE: ${v.cwe}\nCISA KEV: ${v.cisa_kev ? 'Active' : 'No'}\nEPSS Probability: ${(v.epss_score * 100).toFixed(1)}%\n\nDescription:\n${v.description}`);
+    }
+
+    document.addEventListener('input', e => {
+      if (e.target && e.target.id === 'explorerSearch') renderCatalog();
+    });
+    document.addEventListener('change', e => {
+      if (e.target && e.target.id === 'explorerSeverity') renderCatalog();
+    });
+
+    /* Asset Simulator */
+    function simulateAssetChange() {
+      const sel = document.getElementById('simAssetSelect').value;
+      const crit = document.getElementById('simCritDisplay');
+      const exp = document.getElementById('simExpDisplay');
+      const score = document.getElementById('simRiskScoreDisplay');
+      const tier = document.getElementById('simTierDisplay');
+      const sla = document.getElementById('simSlaDisplay');
+
+      if (sel === 'prod_gw') {
+        crit.value = 'Mission Critical (Tier 0: 1.3x)';
+        exp.value = 'INTERNET_FACING (1.0x)';
+        score.innerText = '97.4 / 100';
+        tier.innerText = 'CRITICAL_RISK';
+        tier.className = 'badge-soft CRITICAL';
+        sla.innerHTML = 'Mandatory Emergency Patch: 24 Hours';
+      } else if (sel === 'auth_srv') {
+        crit.value = 'Mission Critical (Tier 0: 1.3x)';
+        exp.value = 'INTERNAL_RESTRICTED (0.5x)';
+        score.innerText = '89.2 / 100';
+        tier.innerText = 'CRITICAL_RISK';
+        tier.className = 'badge-soft CRITICAL';
+        sla.innerHTML = 'Mandatory Patch: 72 Hours';
+      } else if (sel === 'data_lake') {
+        crit.value = 'Moderate Impact (Tier 2: 0.9x)';
+        exp.value = 'INTERNAL_RESTRICTED (0.5x)';
+        score.innerText = '74.6 / 100';
+        tier.innerText = 'HIGH_RISK';
+        tier.className = 'badge-soft HIGH';
+        sla.innerHTML = 'Remediation SLA: 7 Days';
+      } else {
+        crit.value = 'Low Impact (Tier 3: 0.6x)';
+        exp.value = 'ISOLATED_AIRGAP (0.1x)';
+        score.innerText = '58.3 / 100';
+        tier.innerText = 'MEDIUM_RISK';
+        tier.className = 'badge-soft MEDIUM';
+        sla.innerHTML = 'Remediation SLA: 30 Days';
+      }
+    }
+
+    /* Toast */
+    function showToast(msg) {
+      const existing = document.querySelector('.toast-light');
+      if (existing) existing.remove();
+      const toast = document.createElement('div');
+      toast.className = 'toast-light';
+      toast.innerHTML = `<i class="bi bi-info-circle-fill" style="color: var(--accent-primary);"></i> <span>${msg}</span>`;
+      document.body.appendChild(toast);
+      setTimeout(() => {
+        toast.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        setTimeout(() => toast.remove(), 400);
+      }, 3500);
+    }
+
+    /* Window assignments for rock-solid button binding */
+    window.switchTab = switchTab;
+    window.toggleSidebar = toggleSidebar;
+    window.loadPreset = loadPreset;
+    window.handlePredictionSubmit = handlePredictionSubmit;
+    window.simulateBlastContainment = simulateBlastContainment;
+    window.copySnippet = copySnippet;
+    window.inspectCve = inspectCve;
+    window.simulateAssetChange = simulateAssetChange;
+    window.triggerLiveDriftCheck = triggerLiveDriftCheck;
+    window.fetchStatsOverview = fetchStatsOverview;
+    window.scrollToGuide = scrollToGuide;
+
+    /* Global event delegation */
+    document.addEventListener('click', (e) => {
+      const tabBtn = e.target.closest('[data-tab]');
+      if (tabBtn) {
+        const tab = tabBtn.getAttribute('data-tab');
+        if (tab) {
+          e.preventDefault();
+          switchTab(tab);
+        }
+      }
+    });
+  </script>
 </body>
 </html>

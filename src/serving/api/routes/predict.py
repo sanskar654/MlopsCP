@@ -134,6 +134,18 @@ async def predict_severity(req: PredictRequest, request: Request):
             except Exception:
                 pass
 
+        # Update Prometheus metrics for Grafana observability
+        try:
+            from src.monitoring.metrics_exporter import (
+                PREDICTION_COUNT_TOTAL,
+                SEVERITY_PREDICTIONS,
+            )
+
+            PREDICTION_COUNT_TOTAL.labels(severity=pred_label).inc()
+            SEVERITY_PREDICTIONS.labels(severity_tier=pred_label).inc()
+        except Exception as p_err:
+            logger.debug(f"Prometheus metric update skipped: {p_err}")
+
         return PredictResponse(
             cve_id=req.cve_id,
             predicted_severity=pred_label,

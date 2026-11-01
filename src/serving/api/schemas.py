@@ -62,8 +62,8 @@ class RiskScoreRequest(BaseModel):
     asset_criticality: float = Field(
         0.5,
         ge=0.0,
-        le=1.0,
-        description="Organizational asset importance (0=low, 1=critical)",
+        le=2.0,
+        description="Organizational asset importance (0=low, 1=critical, up to 1.3x multiplier)",
     )
     exposure_score: float = Field(
         0.5,

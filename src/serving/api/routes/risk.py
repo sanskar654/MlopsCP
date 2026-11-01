@@ -93,6 +93,20 @@ async def compute_risk_score(req: RiskScoreRequest, request: Request):
             features_snapshot=features_snapshot,
         )
 
+        # Update Prometheus metrics for Grafana observability
+        try:
+            from src.monitoring.metrics_exporter import (
+                PREDICTION_COUNT_TOTAL,
+                RISK_SCORE_GAUGE,
+                SEVERITY_PREDICTIONS,
+            )
+
+            PREDICTION_COUNT_TOTAL.labels(severity=pred_label).inc()
+            SEVERITY_PREDICTIONS.labels(severity_tier=pred_label).inc()
+            RISK_SCORE_GAUGE.observe(float(result.risk_score))
+        except Exception:
+            pass
+
         return RiskScoreResponse(
             cve_id=req.cve_id,
             risk_score=result.risk_score,
